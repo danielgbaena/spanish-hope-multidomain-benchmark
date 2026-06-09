@@ -1,0 +1,6 @@
+comparison,model1_correct_only,model2_correct_only,p_value
+GPT-4.1-mini vs BETO,97,54,0.0006310361599791443
+GPT-4.1-mini vs RoBERTuito,90,48,0.0004827462928941176
+GPT-4.1-mini vs GPT-4o-mini,50,27,0.012171501347889673
+BETO vs RoBERTuito,36,37,1.0
+GPT-4o-mini vs Qwen2.5-7B,61,44,0.11841994270812455
