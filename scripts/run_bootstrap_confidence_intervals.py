@@ -20,14 +20,23 @@ np.random.seed(RANDOM_SEED)
 # =========================================================
 
 MODELS = {
-    "GPT-4.1-mini":
-        "gpt41_mini_predictions.csv",
+    "SVM":
+        "svm_predictions.csv",
 
     "BETO":
         "beto_majority_predictions.csv",
 
     "RoBERTuito":
         "robertuito_majority_predictions.csv",
+
+    "Qwen2.5-7B":
+        "qwen25_7b_predictions.csv",
+
+    "GPT-4o-mini":
+        "gpt4o_mini_predictions.csv",
+
+    "GPT-4.1-mini":
+        "gpt41_mini_predictions.csv",
 }
 
 # =========================================================
@@ -75,6 +84,7 @@ def bootstrap_macro_f1(
 
     return mean_score, lower, upper
 
+
 # =========================================================
 # RUN ANALYSIS
 # =========================================================
@@ -89,12 +99,16 @@ for model_name, filename in MODELS.items():
 
     print(f"\nProcessing {model_name}...")
 
-    df = pd.read_csv(
-        os.path.join(
-            RESULTS_DIR,
-            filename
-        )
+    file_path = os.path.join(
+        RESULTS_DIR,
+        filename
     )
+
+    if not os.path.exists(file_path):
+        print(f"WARNING: File not found -> {file_path}")
+        continue
+
+    df = pd.read_csv(file_path)
 
     gold = df["gold"]
     preds = df["prediction"]
@@ -115,18 +129,10 @@ for model_name, filename in MODELS.items():
 
     results.append({
         "model": model_name,
-
-        "macro_f1":
-            macro_f1,
-
-        "bootstrap_mean":
-            mean_score,
-
-        "ci_95_lower":
-            lower_ci,
-
-        "ci_95_upper":
-            upper_ci,
+        "macro_f1": macro_f1,
+        "bootstrap_mean": mean_score,
+        "ci_95_lower": lower_ci,
+        "ci_95_upper": upper_ci,
     })
 
     print(
@@ -143,6 +149,11 @@ for model_name, filename in MODELS.items():
 # =========================================================
 
 results_df = pd.DataFrame(results)
+
+results_df = results_df.sort_values(
+    by="macro_f1",
+    ascending=False
+)
 
 output_path = os.path.join(
     RESULTS_DIR,
@@ -162,7 +173,12 @@ print("\n========================================")
 print("FINAL RESULTS")
 print("========================================")
 
-print(results_df)
+print(
+    results_df.to_string(
+        index=False,
+        float_format=lambda x: f"{x:.4f}"
+    )
+)
 
 print("\nSaved to:")
 print(output_path)
