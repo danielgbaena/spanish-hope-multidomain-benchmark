@@ -52,6 +52,7 @@ spanish_hope_multidomain_benchmark/
 │   ├── run_mcnemar_tests.py
 │   ├── build_main_results_figure.py
 │   ├── build_per_domain_figure.py
+|   ├── plot_robustness_degradation.py
 │   ├── build_gpt41_confusion_matrix.py
 │   └── ...
 │
@@ -251,6 +252,14 @@ python scripts/build_main_results_figure.py
 ```bash
 python scripts/build_per_domain_figure.py
 ```
+
+## Robustness Degradation Figure
+
+```bash
+python scripts/plot_robustness_degradation.py
+```
+
+This script reproduces the cross-domain robustness degradation analysis reported in the paper. The figure compares performance on the in-domain LGBT subset against the average performance obtained on the unseen obesity-related and racism-related domains, providing a visual summary of model sensitivity to train-test domain shift.
 
 ## GPT-4.1-mini Confusion Matrix
 
