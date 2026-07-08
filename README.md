@@ -6,11 +6,11 @@ This repository provides the complete experimental framework and reproducibility
 
 SpanishHopeMultidomain is a benchmark for the controlled evaluation of cross-domain Hope Speech (HS) detection in Spanish social media. The benchmark contains 2,000 manually annotated posts spanning LGBT-related, obesity-related, and racism-related discourse.
 
-The official evaluation protocol explicitly separates social domains. Supervised models are trained exclusively on LGBT-related discourse, whereas obesity-related and racism-related posts are absent from task-specific training and appear only in the multidomain test partition. This design enables controlled evaluation of supervised transfer to previously unseen vulnerable communities.
+The official evaluation protocol explicitly separates social domains. Supervised models are trained exclusively on LGBT-related discourse, whereas obesity-related and racism-related posts are absent from task-specific training and development and appear only in the multidomain test partition. This design enables controlled evaluation of supervised transfer to previously unseen social domains.
 
 The same multidomain test instances are used to evaluate instruction-tuned large language models under zero-shot conditions, providing a common evaluation set for comparing supervised cross-domain transfer and zero-shot LLM generalization.
 
-This repository contains the experimental scripts, prediction outputs, evaluation utilities, statistical analyses, model-agreement analyses, empirical instance-difficulty analyses, and figure-generation code required to reproduce the empirical results and analyses reported in the manuscript.
+This repository contains the experimental scripts, prediction outputs, evaluation utilities, statistical analyses, model-agreement analyses, model-relative empirical instance-difficulty analyses, manual qualitative error-analysis resources, and figure-generation code required to reproduce the empirical results and analyses reported in the manuscript.
 
 The benchmark data, official partitions, and annotation guidelines are maintained in the companion dataset repository:
 
@@ -52,6 +52,17 @@ spanish-hope-multidomain-benchmark/
 │   ├── instance_difficulty.csv
 │   ├── instance_difficulty_by_domain.csv
 │   ├── unanimous_error_instances.csv
+│   ├── qualitative_error_coding_template.csv
+│   ├── qualitative_primary_phenomenon_summary.csv
+│   ├── qualitative_secondary_phenomenon_summary.csv
+│   ├── qualitative_boolean_diagnostic_summary.csv
+│   ├── qualitative_primary_by_domain.csv
+│   ├── qualitative_secondary_by_domain.csv
+│   ├── qualitative_boolean_by_domain.csv
+│   ├── qualitative_annotation_ambiguity_cases.csv
+│   ├── qualitative_primary_secondary_cooccurrence.csv
+│   ├── qualitative_boolean_cooccurrence.csv
+│   ├── qualitative_coding_summary.csv
 │   ├── main_results_figure.pdf
 │   ├── per_domain_results_figure.pdf
 │   ├── robustness_degradation.pdf
@@ -70,6 +81,7 @@ spanish-hope-multidomain-benchmark/
 │   ├── run_bootstrap_confidence_intervals.py
 │   ├── run_mcnemar_tests.py
 │   ├── run_model_agreement_analysis.py
+│   ├── run_qualitative_error_summary.py
 │   ├── build_main_results_figure.py
 │   ├── build_per_domain_figure.py
 │   ├── plot_robustness_degradation.py
@@ -87,26 +99,30 @@ The benchmark adopts a fixed domain-separated evaluation protocol designed to st
 
 ### Training Partition
 
-The training partition contains 1,400 LGBT-related posts and is used for task-specific supervised training.
+The training partition contains 1,400 LGBT-related posts and is used for task-specific supervised model fitting.
 
 ### Development Partition
 
-The development partition contains 200 LGBT-related posts and is used for model development and validation.
+The development partition contains 200 LGBT-related posts and is provided as the official development partition.
+
+Under the reported fixed experimental protocols, the development partition was not used for supervised model fitting, checkpoint selection, early stopping, or hyperparameter optimization.
+
+Six LGBT instances are shared between the development and test partitions. This overlap should be considered when interpreting results on the LGBT test subset. The obesity-related and racism-related test subsets remain fully unseen during task-specific model development.
 
 ### Test Partition
 
 The multidomain test partition contains 400 posts spanning:
 
-- LGBT-related discourse: 200 instances.
-- Obesity-related discourse: 106 instances.
-- Racism-related discourse: 94 instances.
+- LGBT-related discourse: 200 instances;
+- obesity-related discourse: 106 instances;
+- racism-related discourse: 94 instances.
 
 The supervised models therefore encounter obesity-related and racism-related discourse only at evaluation time.
 
 Two versions of the test partition are included:
 
-- `test.csv` contains the test instances without gold labels and can be used for prediction generation and benchmark evaluation settings in which labels are kept separate from model inference.
-- `test_gold.csv` contains the same test instances with gold labels and is provided to support reproducibility, metric computation, statistical analysis, model-agreement analysis, and post-evaluation research.
+- `test.csv` contains the test instances without gold labels and can be used for prediction generation and benchmark evaluation settings in which labels are kept separate from model inference;
+- `test_gold.csv` contains the same test instances with gold labels and domain annotations and is provided to support reproducibility, metric computation, statistical analysis, model-agreement analysis, qualitative error analysis, and post-evaluation research.
 
 The inclusion of `test_gold.csv` in the archived research artifact is intended to enable independent reproduction and extension of the analyses reported in the manuscript. Researchers conducting new benchmark evaluations should avoid using gold test labels during model development, prompt selection, hyperparameter selection, or any other form of task-specific optimization.
 
@@ -120,15 +136,15 @@ The experimental framework includes three modeling families.
 
 ### Supervised Transformer-Based Models
 
-- BETO.
+- BETO;
 - RoBERTuito.
 
-The transformer-based models are evaluated using three random seeds. Majority-vote predictions are used for the main comparison, while seed-level predictions and result files are retained to support reproducibility and analysis of training variability.
+The transformer-based models are evaluated using three random seeds. Majority-vote predictions are used for the main model-level comparison, while seed-level predictions and result files are retained to support reproducibility and analysis of training variability.
 
 ### Instruction-Tuned Large Language Models
 
-- GPT-4.1-mini.
-- GPT-4o-mini.
+- GPT-4.1-mini;
+- GPT-4o-mini;
 - Qwen2.5-7B.
 
 The instruction-tuned models are evaluated under zero-shot conditions without task-specific training examples.
@@ -137,14 +153,14 @@ The instruction-tuned models are evaluated under zero-shot conditions without ta
 
 The archived release was prepared and validated using:
 
-- Python 3.9.6.
-- The fully pinned package versions listed in `requirements.txt`.
+- Python 3.9.6;
+- the fully pinned package versions listed in `requirements.txt`.
 
 The `requirements.txt` file records the complete Python package environment associated with the final validation of the archived release.
 
 Because hardware platforms, operating systems, externally hosted APIs, model-serving infrastructure, and third-party package availability may change over time, exact re-execution of all model inference pipelines may depend on the availability of the corresponding external services and model resources.
 
-The archived prediction outputs and result files are therefore included to preserve the exact model outputs used in the reported analyses and to enable reproduction of downstream evaluation, statistical analysis, agreement analysis, and figure generation without requiring all model inference procedures to be rerun.
+The archived prediction outputs and result files are therefore included to preserve the exact model outputs used in the reported analyses and to enable reproduction of downstream evaluation, statistical analysis, model-agreement analysis, model-relative empirical instance-difficulty analysis, qualitative summary generation, and figure generation without requiring all model inference procedures to be rerun.
 
 ## Installation
 
@@ -241,23 +257,27 @@ This script computes bootstrap confidence intervals for the evaluated systems on
 python scripts/run_mcnemar_tests.py
 ```
 
-This script performs paired significance tests between systems evaluated on the same test instances.
+This script performs paired McNemar significance tests between systems evaluated on the same test instances.
 
-### Model Agreement and Empirical Instance Difficulty
+### Model Agreement and Model-Relative Empirical Instance Difficulty
 
 ```bash
 python scripts/run_model_agreement_analysis.py
 ```
 
-This script computes:
+This script:
 
-- pairwise raw agreement between model predictions;
-- pairwise Cohen's kappa;
-- an agreement matrix;
-- the number and proportion of model errors for each test instance;
-- empirical instance-difficulty groups relative to the evaluated model set;
-- difficulty distributions by social domain;
-- instances unanimously misclassified by all evaluated models.
+- resolves and validates the canonical benchmark test files;
+- aligns all six model-level prediction vectors by stable instance identifier;
+- validates instance coverage, gold-label consistency, and domain consistency;
+- computes pairwise raw prediction agreement;
+- computes pairwise Cohen's kappa;
+- generates the model-agreement matrix;
+- computes the number and proportion of model errors for every test instance;
+- assigns model-relative empirical difficulty groups;
+- summarizes the difficulty-group distributions by social domain;
+- extracts the instances misclassified by all six evaluated model-level prediction vectors;
+- creates the manual qualitative error-coding template containing the original texts and coding fields.
 
 The generated outputs are:
 
@@ -265,11 +285,103 @@ The generated outputs are:
 - `results/model_agreement_matrix.csv`;
 - `results/instance_difficulty.csv`;
 - `results/instance_difficulty_by_domain.csv`;
-- `results/unanimous_error_instances.csv`.
+- `results/unanimous_error_instances.csv`;
+- `results/qualitative_error_coding_template.csv`.
 
-The instance-difficulty categories are empirical summaries of prediction behavior across the evaluated model set. They should not be interpreted as intrinsic, annotation-independent, or model-independent properties of the benchmark instances.
+The model-relative empirical difficulty groups are defined from the number of errors among the six evaluated model-level prediction vectors:
 
-Similarly, unanimously misclassified instances are retained as reproducibility and qualitative-analysis resources. Unanimous model failure does not by itself demonstrate annotation error, label ambiguity, or intrinsic instance difficulty.
+- `easy`: 0 or 1 model errors;
+- `moderate`: 2 or 3 model errors;
+- `hard`: 4 to 6 model errors.
+
+These categories are empirical summaries of prediction behavior relative to the evaluated model set. They should not be interpreted as intrinsic, annotation-independent, or model-independent properties of the benchmark instances.
+
+Similarly, unanimous model failure does not by itself demonstrate annotation error, label ambiguity, or intrinsic instance difficulty.
+
+## Manual Qualitative Error Analysis
+
+The 16 instances misclassified by all six evaluated model-level prediction vectors were manually examined to characterize recurrent linguistic, pragmatic, and annotation-boundary phenomena associated with unanimous model failure.
+
+The qualitative coding was performed by one author. Consequently, no inter-coder agreement statistic is reported or applicable to this analysis.
+
+The completed manual coding is preserved in:
+
+`results/qualitative_error_coding_template.csv`
+
+For each unanimous-error instance, the coding resource records:
+
+- a primary error phenomenon;
+- an optional secondary error phenomenon;
+- Boolean diagnostic dimensions;
+- whether the instance was considered potentially annotation-ambiguous or close to the operational Hope Speech construct boundary;
+- qualitative notes documenting the coding rationale.
+
+The primary phenomena used in the completed coding include:
+
+- `implicit_supportive_intent`;
+- `annotation_boundary_case`;
+- `context_dependent_or_sociocultural_reference`;
+- `mixed_or_contrastive_communicative_stance`;
+- `informational_or_context_dependent_discourse`.
+
+The Boolean diagnostic dimensions record whether each instance exhibits:
+
+- implicit supportive intent;
+- mixed communicative stance;
+- informational or context-dependent discourse;
+- irony or sarcasm;
+- sociocultural reference;
+- annotation ambiguity.
+
+Annotation-ambiguity coding identifies instances whose correspondence with the operational Hope Speech criteria may be contestable or located near a construct boundary. This diagnostic coding does not automatically invalidate or replace the benchmark gold labels.
+
+Because the qualitative analysis is restricted to the 16 instances misclassified by all six model-level prediction vectors, the resulting frequencies must not be interpreted as prevalence estimates among all benchmark errors, all difficult instances, or the complete benchmark.
+
+### Qualitative Summary Generation
+
+```bash
+python scripts/run_qualitative_error_summary.py
+```
+
+This script validates the completed manual coding file and generates descriptive summaries of the qualitative analysis.
+
+The script validates:
+
+- the expected coding-file schema;
+- the presence of exactly 16 unique unanimous-error instances;
+- completeness of the required manual coding fields;
+- explicit valid values for all Boolean diagnostic dimensions;
+- valid gold labels, domains, and difficulty groups;
+- absence of duplicate instance identifiers;
+- consistency of category labels.
+
+The script then computes:
+
+- primary-phenomenon frequencies;
+- secondary-phenomenon frequencies;
+- Boolean diagnostic frequencies;
+- primary phenomena by social domain;
+- secondary phenomena by social domain;
+- Boolean diagnostics by social domain;
+- the subset of instances coded with annotation ambiguity;
+- primary-secondary phenomenon co-occurrence;
+- Boolean diagnostic co-occurrence;
+- an overall qualitative coding summary.
+
+The generated outputs are:
+
+- `results/qualitative_primary_phenomenon_summary.csv`;
+- `results/qualitative_secondary_phenomenon_summary.csv`;
+- `results/qualitative_boolean_diagnostic_summary.csv`;
+- `results/qualitative_primary_by_domain.csv`;
+- `results/qualitative_secondary_by_domain.csv`;
+- `results/qualitative_boolean_by_domain.csv`;
+- `results/qualitative_annotation_ambiguity_cases.csv`;
+- `results/qualitative_primary_secondary_cooccurrence.csv`;
+- `results/qualitative_boolean_cooccurrence.csv`;
+- `results/qualitative_coding_summary.csv`.
+
+The generated summaries are descriptive outputs of the completed single-coder qualitative analysis. They should be interpreted only with respect to the 16 unanimously misclassified instances examined in this analysis.
 
 ## Figure Generation
 
@@ -303,16 +415,20 @@ Macro-F1 is the primary evaluation metric.
 
 The experimental framework additionally provides:
 
+- aggregate performance analysis;
 - per-domain performance analysis;
 - source-domain versus unseen-domain performance comparison;
 - bootstrap confidence intervals;
 - paired McNemar significance tests;
 - pairwise model-agreement analysis;
 - Cohen's kappa analysis;
-- empirical instance-difficulty analysis;
+- model-relative empirical instance-difficulty analysis;
 - domain-specific difficulty distributions;
 - identification of unanimous model failures;
-- qualitative resources for the analysis of recurrent model errors.
+- manual qualitative coding of unanimous model failures;
+- descriptive analysis of recurrent error phenomena;
+- annotation-ambiguity diagnostics;
+- qualitative phenomenon and diagnostic co-occurrence analyses.
 
 ## Reproducibility
 
@@ -322,23 +438,27 @@ The repository provides:
 - the gold-labeled test partition used for evaluation and analysis;
 - complete prediction outputs for all evaluated systems;
 - seed-level predictions for supervised transformer models;
-- majority-vote predictions used in the main comparison;
+- majority-vote predictions used in the main model-level comparison;
 - model-level result files;
 - scripts for aggregate and per-domain evaluation;
 - bootstrap confidence-interval computation;
 - paired statistical significance testing;
-- model-agreement and empirical instance-difficulty analysis;
+- model-agreement and model-relative empirical instance-difficulty analysis;
+- extraction of unanimously misclassified instances;
+- the completed single-coder qualitative error-coding resource;
+- automated validation and descriptive summarization of the manual qualitative coding;
+- generated qualitative summary tables;
 - figure-generation scripts;
 - generated tables and figures used to support the manuscript analyses;
 - fully pinned Python dependencies;
 - machine-readable citation metadata;
 - machine-readable Zenodo archival metadata.
 
-The prediction outputs and result files included in the archived release correspond to the outputs used in the manuscript analyses.
+The prediction outputs, manual coding resource, generated result files, and figures included in the archived release correspond to the resources used in the manuscript analyses.
 
 Experiments involving proprietary API-based models require valid API credentials and may be affected by future changes to externally hosted model endpoints. Experiments involving public pretrained models may also be affected by changes to model repositories, software libraries, hardware availability, or numerical behavior across computational platforms.
 
-The inclusion of fixed partitions, prediction outputs, intermediate results, statistical outputs, and analysis scripts is intended to support reproduction of the reported analyses independently of future model-serving availability.
+The inclusion of fixed partitions, prediction outputs, intermediate results, statistical outputs, manual qualitative coding, generated qualitative summaries, and analysis scripts is intended to support reproduction and inspection of the reported analyses independently of future model-serving availability.
 
 ## Relationship to the Dataset Repository
 
@@ -347,7 +467,7 @@ This repository contains the experimental framework and reproducibility material
 The companion dataset repository contains:
 
 - the benchmark data;
-- the official train, development, and test partitions;
+- the official training, development, and test partitions;
 - the gold-labeled test partition for reproducibility;
 - the annotation guidelines;
 - dataset-level documentation and metadata.
@@ -362,18 +482,18 @@ The software and dataset repositories are maintained separately so that the benc
 
 This repository includes a `CITATION.cff` file with machine-readable citation metadata for the software artifact.
 
-If you use the experimental framework, scripts, prediction outputs, statistical-analysis resources, or other reproducibility materials from this repository, please cite the versioned software release archived on Zenodo with DOI `10.5281/zenodo.21262818`.
+If you use the experimental framework, scripts, prediction outputs, statistical-analysis resources, qualitative-analysis resources, or other reproducibility materials from this repository, please cite the versioned software release archived on Zenodo with DOI `10.5281/zenodo.21262818`.
 
 If you use the SpanishHopeMultidomain dataset, please also cite the versioned dataset release archived on Zenodo with DOI `10.5281/zenodo.21263418`.
 
-The associated manuscript is currently in preparation:
+The associated manuscript is currently under review:
 
 ```bibtex
-@unpublished{garciabaena2026crossdomain,
+@article{garciabaena2026crossdomain,
   title  = {Cross-Domain Generalization of Hope Speech Detection Across Vulnerable Communities: A Benchmark Study of Supervised Models and Large Language Models},
   author = {García-Baena, Daniel and García-Cumbreras, Miguel Ángel and Jiménez-Zafra, Salud María},
   year   = {2026},
-  note   = {Manuscript in preparation}
+  note   = {Manuscript under review}
 }
 ```
 
@@ -383,21 +503,25 @@ Publication metadata will be updated when the manuscript is published.
 
 Stable releases of this repository are archived in Zenodo.
 
-Each archived release preserves a versioned snapshot of the experimental framework, prediction outputs, analysis scripts, statistical results, and associated reproducibility materials.
+Each archived release preserves a versioned snapshot of the experimental framework, prediction outputs, analysis scripts, statistical results, qualitative-analysis resources, and associated reproducibility materials.
 
 The first archival release is version `v1.0.0` and is available with DOI `10.5281/zenodo.21262818`.
+
+Changes made after an archived release, including additions or modifications to analysis scripts, qualitative coding resources, generated results, or documentation, should be preserved in a new versioned archival release when the updated research artifact is finalized.
 
 Future changes that materially modify the software, experimental resources, analyses, or documentation should be published as new versioned releases rather than silently modifying the archived artifact.
 
 ## Ethical Considerations
 
-The benchmark contains social media posts discussing vulnerable communities and may include offensive, discriminatory, or emotionally sensitive language.
+The benchmark contains social media posts discussing vulnerable communities and may include offensive, discriminatory, aggressive, or emotionally sensitive language.
 
 The benchmark and experimental resources are intended exclusively for research purposes. Model predictions should not be interpreted as autonomous moderation decisions, clinical assessments, or assessments of individual social media users.
 
-Researchers using the benchmark should consider the ethical implications of socially oriented NLP research, including privacy, representational limitations, annotation subjectivity, potential model biases, domain-dependent behavior, and the risks associated with deployment beyond the controlled benchmark setting.
+Researchers using the benchmark should consider the ethical implications of socially oriented NLP research, including privacy, annotation subjectivity, representational limitations, potential model biases, domain-dependent behavior, and the risks associated with deployment beyond the controlled benchmark setting.
 
-The empirical instance-difficulty and unanimous-error resources included in this repository characterize the behavior of the evaluated model set and should not be used as standalone evidence about individual users, communities, or the inherent validity of specific social media posts.
+The model-relative empirical instance-difficulty resources, unanimous-error resources, and qualitative coding materials included in this repository characterize the behavior of the evaluated model set and the interpretive analysis performed on the selected unanimous-error subset. They should not be used as standalone evidence about individual users, communities, the intrinsic difficulty of specific social media posts, or the inherent validity of individual benchmark labels.
+
+Instances coded as annotation-ambiguous or close to the operational Hope Speech construct boundary are retained with their benchmark gold labels. Such coding documents potential interpretive uncertainty and does not automatically establish annotation error.
 
 ## License
 
