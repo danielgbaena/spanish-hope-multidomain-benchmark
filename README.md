@@ -1,181 +1,163 @@
-# SpanishHopeMultidomain
+# SpanishHopeMultidomain Benchmark
 
-SpanishHopeMultidomain is a benchmark for **cross-domain robustness evaluation in Spanish Hope Speech (HS) detection**.
+This repository provides the complete experimental framework and reproducibility materials accompanying the manuscript:
 
-The benchmark was specifically designed to study how NLP systems behave under **unseen-domain conditions** by explicitly separating training and evaluation domains. Unlike conventional random train-test splits, SpanishHopeMultidomain introduces controlled distributional mismatch to enable robustness-oriented evaluation under realistic social media conditions.
+> **Cross-Domain Generalization of Hope Speech Detection Across Vulnerable Communities: A Benchmark Study of Supervised Models and Large Language Models**
 
-The benchmark contains manually annotated Spanish social media posts across three socially relevant domains:
+SpanishHopeMultidomain is a benchmark for the controlled evaluation of cross-domain Hope Speech (HS) detection in Spanish social media. The benchmark contains 2,000 manually annotated posts spanning LGBT-related, obesity-related, and racism-related discourse.
 
-- LGBT-related discourse
-- Obesity-related discourse
-- Racism-related discourse
+The official evaluation protocol explicitly separates social domains. Supervised models are trained exclusively on LGBT-related discourse, whereas obesity-related and racism-related posts are absent from task-specific training and appear only in the multidomain test partition. This design enables controlled evaluation of supervised transfer to previously unseen vulnerable communities.
 
-The repository includes:
+The same multidomain test instances are used to evaluate instruction-tuned large language models under zero-shot conditions, providing a common evaluation set for comparing supervised cross-domain transfer and zero-shot LLM generalization.
 
-- The benchmark dataset
-- Fixed train/development/test partitions
-- Annotation resources
-- Experimental scripts
-- Evaluation utilities
-- Statistical analysis scripts
-- Figure generation scripts
-- Prediction outputs and reproducibility materials
+This repository contains the experimental scripts, prediction outputs, evaluation utilities, statistical analyses, model-agreement analyses, and figure-generation code required to reproduce the empirical results reported in the manuscript.
 
-This repository accompanies the paper:
+The benchmark data, official partitions, and annotation guidelines are maintained in the companion dataset repository:
 
-> **SpanishHopeMultidomain: A Benchmark for Cross-Domain Robustness Evaluation in Spanish Hope Speech Detection**
+`danielgbaena/spanish-hope-multidomain`
 
----
-
-# Repository Structure
+## Repository Contents
 
 ```text
 spanish_hope_multidomain_benchmark/
-│
 ├── data/
 │   ├── train.csv
 │   ├── dev.csv
 │   ├── test.csv
-│   └── ...
-│
+│   └── test_gold.csv
 ├── results/
-│   └── ...
-│
+│   ├── svm_predictions.csv
+│   ├── svm_results.json
+│   ├── beto_seed42_predictions.csv
+│   ├── beto_seed52_predictions.csv
+│   ├── beto_seed62_predictions.csv
+│   ├── beto_majority_predictions.csv
+│   ├── beto_multiseed_results.json
+│   ├── robertuito_seed42_predictions.csv
+│   ├── robertuito_seed52_predictions.csv
+│   ├── robertuito_seed62_predictions.csv
+│   ├── robertuito_majority_predictions.csv
+│   ├── robertuito_multiseed_results.json
+│   ├── gpt41_mini_predictions.csv
+│   ├── gpt41_mini_results.json
+│   ├── gpt4o_mini_predictions.csv
+│   ├── gpt4o_mini_results.json
+│   ├── qwen25_7b_predictions.csv
+│   ├── qwen25_7b_results.json
+│   ├── final_results_summary.csv
+│   ├── bootstrap_confidence_intervals.csv
+│   ├── mcnemar_results.csv
+│   ├── model_agreement.csv
+│   ├── model_agreement_matrix.csv
+│   ├── instance_difficulty.csv
+│   ├── instance_difficulty_by_domain.csv
+│   ├── unanimous_error_instances.csv
+│   ├── main_results_figure.pdf
+│   ├── per_domain_results_figure.pdf
+│   ├── robustness_degradation.pdf
+│   └── gpt41_confusion_matrix.pdf
 ├── scripts/
+│   ├── check_dataset.py
 │   ├── svm_baseline.py
+│   ├── beto_baseline.py
 │   ├── beto_multiseed.py
+│   ├── robertuito_baseline.py
 │   ├── robertuito_multiseed.py
 │   ├── gpt41_mini_crossdomain.py
 │   ├── gpt4o_mini_crossdomain.py
-│   ├── qwen25_crossdomain.py
+│   ├── qwen25_7b_crossdomain.py
+│   ├── build_results_summary.py
 │   ├── run_bootstrap_confidence_intervals.py
 │   ├── run_mcnemar_tests.py
+│   ├── run_model_agreement_analysis.py
 │   ├── build_main_results_figure.py
 │   ├── build_per_domain_figure.py
-|   ├── plot_robustness_degradation.py
-│   ├── build_gpt41_confusion_matrix.py
-│   └── ...
-│
+│   ├── plot_robustness_degradation.py
+│   └── build_gpt41_confusion_matrix.py
 ├── requirements.txt
-├── README.md
-└── ...
+├── LICENSE
+└── README.md
 ```
 
----
+## Benchmark Protocol
 
-# Benchmark Description
+The benchmark adopts a fixed domain-separated evaluation protocol.
 
-The benchmark was intentionally designed for **controlled multidomain robustness evaluation** rather than conventional in-domain supervised classification.
+### Training Partition
 
-## Domain Distribution
+The training partition contains 1,400 LGBT-related posts and is used for task-specific supervised training.
 
-### Training + Development
+### Development Partition
 
-- LGBT-related discourse only
+The development partition contains 200 LGBT-related posts and is used for model development and validation.
 
-### Test
+### Test Partition
 
-- LGBT-related discourse
-- Obesity-related discourse
-- Racism-related discourse
+The multidomain test partition contains 400 posts spanning:
 
-This setup enables systematic evaluation under explicit **cross-domain topic shift** conditions.
+- LGBT-related discourse: 200 instances.
+- Obesity-related discourse: 106 instances.
+- Racism-related discourse: 94 instances.
 
----
+The supervised models therefore encounter obesity-related and racism-related discourse only at evaluation time.
 
-## Dataset Repository
+Two versions of the test partition are included:
 
-The SpanishHopeMultidomain dataset and annotation guidelines are available at:
+- `test.csv` contains the official test instances without gold labels and can be used for benchmark evaluation or prediction generation.
+- `test_gold.csv` contains the same test instances with gold labels and is used by the evaluation, statistical-analysis, and reproducibility scripts.
 
-https://github.com/danielgbaena/spanish-hope-multidomain
+## Evaluated Models
 
----
+The experimental framework includes three modeling families.
 
-# Dataset Statistics
+### Sparse-Feature Machine Learning
 
-| Statistic | Value |
-|---|---|
-| Number of posts | 2,000 |
-| Hope Speech (HS) | 1,000 |
-| Non Hope Speech (NHS) | 1,000 |
-| Training subset | 1,400 |
-| Development subset | 200 |
-| Test subset | 400 |
+- TF-IDF with a linear Support Vector Machine (SVM).
 
----
+### Supervised Transformer-Based Models
 
-# Evaluated Models
+- BETO.
+- RoBERTuito.
 
-The experiments include multiple modeling paradigms:
+The transformer-based models are evaluated using three random seeds. Majority-vote predictions are used for the main comparison, while seed-level outputs are retained to support reproducibility and analysis of training variability.
 
-## Sparse-feature Machine Learning
+### Instruction-Tuned Large Language Models
 
-- TF-IDF + Linear SVM
+- GPT-4.1-mini.
+- GPT-4o-mini.
+- Qwen2.5-7B.
 
-## Transformer-based Architectures
+The instruction-tuned models are evaluated under zero-shot conditions without task-specific training examples.
 
-- BETO
-- RoBERTuito
+## Installation
 
-## Instruction-tuned Large Language Models
-
-- GPT-4o-mini
-- GPT-4.1-mini
-- Qwen2.5-7B
-
----
-
-# Installation
-
-## 1. Clone the repository
+Clone this experimental repository:
 
 ```bash
-git clone https://github.com/danielgbaena/spanish-hope-multidomain.git
-cd spanish-hope-multidomain
+git clone https://github.com/danielgbaena/spanish-hope-multidomain-benchmark.git
+cd spanish-hope-multidomain-benchmark
 ```
 
-## 2. Create a virtual environment
+Create and activate a Python virtual environment:
 
 ```bash
 python -m venv venv
 source venv/bin/activate
 ```
 
-## 3. Install dependencies
+Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
+## Running the Experiments
 
-# Reproducibility
+### Dataset Validation
 
-All experiments were conducted using:
-
-- Fixed train/development/test partitions
-- Standardized preprocessing
-- Public model checkpoints
-- Controlled evaluation conditions
-- Multi-seed transformer experiments
-- Deterministic prompting configurations for LLMs
-
-The repository includes:
-
-- Training scripts
-- Evaluation scripts
-- Prompting templates
-- Statistical analysis scripts
-- Figure generation scripts
-- Prediction outputs
-- Bootstrap confidence interval computation
-- McNemar significance testing
-
----
-
-# Experimental Scripts
-
-## Supervised Models
+```bash
+python scripts/check_dataset.py
+```
 
 ### SVM Baseline
 
@@ -183,150 +165,182 @@ The repository includes:
 python scripts/svm_baseline.py
 ```
 
-### BETO Multiseed Evaluation
+### BETO Multi-Seed Evaluation
 
 ```bash
 python scripts/beto_multiseed.py
 ```
 
-### RoBERTuito Multiseed Evaluation
+### RoBERTuito Multi-Seed Evaluation
 
 ```bash
 python scripts/robertuito_multiseed.py
 ```
 
----
-
-# LLM Evaluation
-
-## GPT-4.1-mini
+### GPT-4.1-mini Zero-Shot Evaluation
 
 ```bash
 python scripts/gpt41_mini_crossdomain.py
 ```
 
-## GPT-4o-mini
+### GPT-4o-mini Zero-Shot Evaluation
 
 ```bash
 python scripts/gpt4o_mini_crossdomain.py
 ```
 
-## Qwen2.5-7B
+### Qwen2.5-7B Zero-Shot Evaluation
 
 ```bash
-python scripts/qwen25_crossdomain.py
+python scripts/qwen25_7b_crossdomain.py
 ```
 
----
+## Evaluation and Statistical Analysis
 
-# Statistical Analysis
+### Aggregate Results Summary
 
-## Bootstrap Confidence Intervals
+```bash
+python scripts/build_results_summary.py
+```
+
+### Bootstrap Confidence Intervals
 
 ```bash
 python scripts/run_bootstrap_confidence_intervals.py
 ```
 
-This script reproduces the confidence interval analysis reported in the paper.
+This script computes bootstrap confidence intervals for the evaluated systems on the common multidomain test partition.
 
-## McNemar Statistical Significance Tests
+### Paired McNemar Significance Tests
 
 ```bash
 python scripts/run_mcnemar_tests.py
 ```
 
-This script reproduces the pairwise significance analysis between evaluated systems.
+This script performs paired significance tests between systems evaluated on the same test instances.
 
----
+### Model Agreement and Empirical Instance Difficulty
 
-# Figure Generation
+```bash
+python scripts/run_model_agreement_analysis.py
+```
 
-## Main Results Figure
+This script computes:
+
+- pairwise raw agreement between model predictions;
+- pairwise Cohen's kappa;
+- an agreement matrix;
+- the number and proportion of model errors for each test instance;
+- empirical instance-difficulty groups relative to the evaluated model set;
+- difficulty distributions by social domain;
+- instances unanimously misclassified by all evaluated models.
+
+The generated outputs are:
+
+- `results/model_agreement.csv`;
+- `results/model_agreement_matrix.csv`;
+- `results/instance_difficulty.csv`;
+- `results/instance_difficulty_by_domain.csv`;
+- `results/unanimous_error_instances.csv`.
+
+The instance-difficulty categories are empirical summaries of prediction behavior across the evaluated model set and should not be interpreted as intrinsic or model-independent properties of the benchmark instances.
+
+## Figure Generation
+
+### Main Results Figure
 
 ```bash
 python scripts/build_main_results_figure.py
 ```
 
-## Per-domain Results Figure
+### Per-Domain Performance Figure
 
 ```bash
 python scripts/build_per_domain_figure.py
 ```
 
-## Robustness Degradation Figure
+### Cross-Domain Robustness Degradation Figure
 
 ```bash
 python scripts/plot_robustness_degradation.py
 ```
 
-This script reproduces the cross-domain robustness degradation analysis reported in the paper. The figure compares performance on the in-domain LGBT subset against the average performance obtained on the unseen obesity-related and racism-related domains, providing a visual summary of model sensitivity to train-test domain shift.
-
-## GPT-4.1-mini Confusion Matrix
+### GPT-4.1-mini Confusion Matrix
 
 ```bash
 python scripts/build_gpt41_confusion_matrix.py
 ```
 
----
+## Evaluation Metrics and Analyses
 
-# Evaluation Metric
+Macro-F1 is the primary evaluation metric.
 
-The primary evaluation metric used throughout the benchmark is:
+The experimental framework additionally provides:
 
-- Macro-F1
+- per-domain performance analysis;
+- source-domain versus unseen-domain performance comparison;
+- bootstrap confidence intervals;
+- paired McNemar significance tests;
+- pairwise model-agreement analysis;
+- Cohen's kappa analysis;
+- empirical instance-difficulty analysis;
+- domain-specific difficulty distributions;
+- identification of unanimous model failures.
 
-Additional analyses include:
+## Reproducibility
 
-- Per-domain robustness evaluation
-- Bootstrap confidence intervals
-- McNemar statistical significance testing
-- Benchmark difficulty analysis
-- Qualitative error analysis
+The repository provides:
 
----
+- fixed train, development, and test partitions;
+- complete prediction outputs for all evaluated systems;
+- seed-level predictions for supervised transformer models;
+- majority-vote predictions used in the main comparison;
+- model-level result files;
+- scripts for aggregate and per-domain evaluation;
+- bootstrap confidence-interval computation;
+- paired statistical significance testing;
+- model-agreement and empirical instance-difficulty analysis;
+- figure-generation scripts;
+- generated tables and figures used to support the manuscript analyses.
 
-# Citation
+Experiments involving proprietary API-based models require valid API credentials and may be affected by future changes to externally hosted model endpoints. The archived prediction outputs and result files are provided to preserve the exact outputs used in the reported analyses.
 
-If you use this benchmark or repository, please cite:
+## Dataset Repository
+
+The benchmark data, official partitions, and complete annotation guidelines are available in the companion repository:
+
+`danielgbaena/spanish-hope-multidomain`
+
+## Citation
+
+If you use SpanishHopeMultidomain or the accompanying experimental framework, please cite the associated manuscript.
 
 ```bibtex
-@article{garciabaena2026spanishhopemultidomain,
-  title={SpanishHopeMultidomain: A Benchmark for Cross-Domain Robustness Evaluation in Spanish Hope Speech Detection},
-  author={García-Baena, Daniel and García-Cumbreras, Miguel Ángel and Jiménez-Zafra, Salud María},
-  journal={Scientific Reports},
-  year={2026}
+@article{garciabaena2026crossdomain,
+  title   = {Cross-Domain Generalization of Hope Speech Detection Across Vulnerable Communities: A Benchmark Study of Supervised Models and Large Language Models},
+  author  = {García-Baena, Daniel and García-Cumbreras, Miguel Ángel and Jiménez-Zafra, Salud María},
+  year    = {2026},
+  note    = {Manuscript under review}
 }
 ```
 
----
+The citation metadata will be updated when publication information becomes available.
 
-# Ethical Considerations
+## Ethical Considerations
 
-The dataset was collected from publicly available social media content.
+The benchmark contains social media posts discussing vulnerable communities and may include offensive, discriminatory, or emotionally sensitive language.
 
-To preserve user privacy:
+The benchmark and experimental resources are intended exclusively for research purposes. Model predictions should not be interpreted as autonomous moderation decisions or as assessments of individual social media users.
 
-- User mentions were removed
-- Personally identifiable information was removed
-- The benchmark is distributed exclusively for research purposes
+Researchers using the benchmark should consider the ethical implications of socially oriented NLP research, including privacy, representational limitations, annotation subjectivity, potential model biases, and the risks associated with deployment beyond the controlled benchmark setting.
 
-The dataset may contain offensive or emotionally sensitive content due to the nature of online discourse.
+## License
 
-The evaluated models are intended exclusively for research on robust socially grounded NLP systems and should not be interpreted as fully autonomous moderation systems.
+Reuse and redistribution of the materials in this repository are governed by the terms specified in the `LICENSE` file.
 
----
+## Contact
 
-# License
-
-This repository is released for research and academic purposes.
-
-Please check the repository license for additional details.
-
----
-
-# Contact
-
-For questions or issues related to the benchmark or repository:
+For questions concerning the benchmark or experimental framework, please open an issue in the corresponding GitHub repository or contact:
 
 Daniel García-Baena  
 daniel.gbaena@gmail.com

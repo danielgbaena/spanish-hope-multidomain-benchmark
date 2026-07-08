@@ -1,0 +1,10 @@
+topic,difficulty_group,n_instances,percentage_within_domain
+lgbt,easy,108,54.0
+lgbt,moderate,52,26.0
+lgbt,hard,40,20.0
+obesity,easy,28,26.42
+obesity,moderate,36,33.96
+obesity,hard,42,39.62
+racism,easy,47,50.0
+racism,moderate,15,15.96
+racism,hard,32,34.04
