@@ -10,6 +10,7 @@ authors:
   - family-names: "Jiménez-Zafra"
     given-names: "Salud María"
 repository-code: "https://github.com/danielgbaena/spanish-hope-multidomain-benchmark"
+doi: "10.5281/zenodo.21262818"
 license: MIT
 version: "1.0.0"
 date-released: "2026-07-08"

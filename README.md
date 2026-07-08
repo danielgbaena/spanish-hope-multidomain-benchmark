@@ -362,9 +362,9 @@ The software and dataset repositories are maintained separately so that the benc
 
 This repository includes a `CITATION.cff` file with machine-readable citation metadata for the software artifact.
 
-If you use the experimental framework, scripts, prediction outputs, statistical-analysis resources, or other reproducibility materials from this repository, please cite the archived software release using the citation information provided by the corresponding Zenodo record.
+If you use the experimental framework, scripts, prediction outputs, statistical-analysis resources, or other reproducibility materials from this repository, please cite the versioned software release archived on Zenodo with DOI `10.5281/zenodo.21262818`.
 
-If you use the SpanishHopeMultidomain dataset, please also cite the corresponding archived dataset release.
+If you use the SpanishHopeMultidomain dataset, please also cite the versioned dataset release archived on Zenodo with DOI `10.5281/zenodo.21263418`.
 
 The associated manuscript is currently in preparation:
 
@@ -381,11 +381,11 @@ Publication metadata will be updated when the manuscript is published.
 
 ## Archival and Versioning
 
-Stable releases of this repository are intended to be archived in Zenodo.
+Stable releases of this repository are archived in Zenodo.
 
 Each archived release preserves a versioned snapshot of the experimental framework, prediction outputs, analysis scripts, statistical results, and associated reproducibility materials.
 
-The first archival release is version `v1.0.0`.
+The first archival release is version `v1.0.0` and is available with DOI `10.5281/zenodo.21262818`.
 
 Future changes that materially modify the software, experimental resources, analyses, or documentation should be published as new versioned releases rather than silently modifying the archived artifact.
 
