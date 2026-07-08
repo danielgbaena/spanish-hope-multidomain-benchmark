@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this experimental framework or its reproducibility materials, please cite this software."
+title: "SpanishHopeMultidomain Benchmark: Experimental Framework and Reproducibility Materials"
+type: software
+authors:
+  - family-names: "García-Baena"
+    given-names: "Daniel"
+  - family-names: "García-Cumbreras"
+    given-names: "Miguel Ángel"
+  - family-names: "Jiménez-Zafra"
+    given-names: "Salud María"
+repository-code: "https://github.com/danielgbaena/spanish-hope-multidomain-benchmark"
+license: MIT
+version: "1.0.0"
+date-released: "2026-07-08"
+keywords:
+  - "hope speech detection"
+  - "cross-domain generalization"
+  - "domain shift"
+  - "benchmark evaluation"
+  - "large language models"
+  - "natural language processing"
+  - "social media mining"

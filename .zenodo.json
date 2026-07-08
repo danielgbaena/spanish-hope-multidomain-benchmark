@@ -1,0 +1,30 @@
+{
+    "title": "SpanishHopeMultidomain Benchmark: Experimental Framework and Reproducibility Materials",
+    "description": "Experimental framework and reproducibility materials for the SpanishHopeMultidomain benchmark. The repository provides fixed benchmark partitions, scripts for sparse-feature machine learning, supervised transformer-based models, and zero-shot instruction-tuned large language models, together with prediction outputs, multi-seed experiments, bootstrap confidence intervals, McNemar significance tests, model-agreement analysis, instance-difficulty analysis, and figure-generation utilities for the controlled evaluation of cross-domain Hope Speech detection in Spanish social media.",
+    "creators": [
+        {
+            "name": "García-Baena, Daniel"
+        },
+        {
+            "name": "García-Cumbreras, Miguel Ángel"
+        },
+        {
+            "name": "Jiménez-Zafra, Salud María"
+        }
+    ],
+    "keywords": [
+        "hope speech detection",
+        "cross-domain generalization",
+        "domain shift",
+        "benchmark evaluation",
+        "large language models",
+        "natural language processing",
+        "social media mining",
+        "reproducible research"
+    ],
+    "license": {
+        "id": "MIT"
+    },
+    "upload_type": "software",
+    "access_right": "open"
+}

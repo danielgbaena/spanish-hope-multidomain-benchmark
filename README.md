@@ -10,7 +10,7 @@ The official evaluation protocol explicitly separates social domains. Supervised
 
 The same multidomain test instances are used to evaluate instruction-tuned large language models under zero-shot conditions, providing a common evaluation set for comparing supervised cross-domain transfer and zero-shot LLM generalization.
 
-This repository contains the experimental scripts, prediction outputs, evaluation utilities, statistical analyses, model-agreement analyses, and figure-generation code required to reproduce the empirical results reported in the manuscript.
+This repository contains the experimental scripts, prediction outputs, evaluation utilities, statistical analyses, model-agreement analyses, empirical instance-difficulty analyses, and figure-generation code required to reproduce the empirical results and analyses reported in the manuscript.
 
 The benchmark data, official partitions, and annotation guidelines are maintained in the companion dataset repository:
 
@@ -19,7 +19,7 @@ The benchmark data, official partitions, and annotation guidelines are maintaine
 ## Repository Contents
 
 ```text
-spanish_hope_multidomain_benchmark/
+spanish-hope-multidomain-benchmark/
 ├── data/
 │   ├── train.csv
 │   ├── dev.csv
@@ -74,6 +74,8 @@ spanish_hope_multidomain_benchmark/
 │   ├── build_per_domain_figure.py
 │   ├── plot_robustness_degradation.py
 │   └── build_gpt41_confusion_matrix.py
+├── .zenodo.json
+├── CITATION.cff
 ├── requirements.txt
 ├── LICENSE
 └── README.md
@@ -81,7 +83,7 @@ spanish_hope_multidomain_benchmark/
 
 ## Benchmark Protocol
 
-The benchmark adopts a fixed domain-separated evaluation protocol.
+The benchmark adopts a fixed domain-separated evaluation protocol designed to study model behavior when task-specific supervision and evaluation data differ in social domain.
 
 ### Training Partition
 
@@ -103,8 +105,10 @@ The supervised models therefore encounter obesity-related and racism-related dis
 
 Two versions of the test partition are included:
 
-- `test.csv` contains the official test instances without gold labels and can be used for benchmark evaluation or prediction generation.
-- `test_gold.csv` contains the same test instances with gold labels and is used by the evaluation, statistical-analysis, and reproducibility scripts.
+- `test.csv` contains the test instances without gold labels and can be used for prediction generation and benchmark evaluation settings in which labels are kept separate from model inference.
+- `test_gold.csv` contains the same test instances with gold labels and is provided to support reproducibility, metric computation, statistical analysis, model-agreement analysis, and post-evaluation research.
+
+The inclusion of `test_gold.csv` in the archived research artifact is intended to enable independent reproduction and extension of the analyses reported in the manuscript. Researchers conducting new benchmark evaluations should avoid using gold test labels during model development, prompt selection, hyperparameter selection, or any other form of task-specific optimization.
 
 ## Evaluated Models
 
@@ -119,7 +123,7 @@ The experimental framework includes three modeling families.
 - BETO.
 - RoBERTuito.
 
-The transformer-based models are evaluated using three random seeds. Majority-vote predictions are used for the main comparison, while seed-level outputs are retained to support reproducibility and analysis of training variability.
+The transformer-based models are evaluated using three random seeds. Majority-vote predictions are used for the main comparison, while seed-level predictions and result files are retained to support reproducibility and analysis of training variability.
 
 ### Instruction-Tuned Large Language Models
 
@@ -128,6 +132,19 @@ The transformer-based models are evaluated using three random seeds. Majority-vo
 - Qwen2.5-7B.
 
 The instruction-tuned models are evaluated under zero-shot conditions without task-specific training examples.
+
+## Reference Software Environment
+
+The archived release was prepared and validated using:
+
+- Python 3.9.6.
+- The fully pinned package versions listed in `requirements.txt`.
+
+The `requirements.txt` file records the complete Python package environment associated with the final validation of the archived release.
+
+Because hardware platforms, operating systems, externally hosted APIs, model-serving infrastructure, and third-party package availability may change over time, exact re-execution of all model inference pipelines may depend on the availability of the corresponding external services and model resources.
+
+The archived prediction outputs and result files are therefore included to preserve the exact model outputs used in the reported analyses and to enable reproduction of downstream evaluation, statistical analysis, agreement analysis, and figure generation without requiring all model inference procedures to be rerun.
 
 ## Installation
 
@@ -141,15 +158,20 @@ cd spanish-hope-multidomain-benchmark
 Create and activate a Python virtual environment:
 
 ```bash
-python -m venv venv
+python3.9 -m venv venv
 source venv/bin/activate
 ```
 
 Install the required dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
+
+Some experiments require additional external resources:
+
+- experiments using GPT-4.1-mini and GPT-4o-mini require valid API credentials and access to the corresponding externally hosted model endpoints;
+- experiments using pretrained transformer models or Qwen2.5-7B require access to the corresponding model checkpoints and sufficient computational resources.
 
 ## Running the Experiments
 
@@ -203,6 +225,8 @@ python scripts/qwen25_7b_crossdomain.py
 python scripts/build_results_summary.py
 ```
 
+This script aggregates the model-level results used to construct the main empirical comparison.
+
 ### Bootstrap Confidence Intervals
 
 ```bash
@@ -243,7 +267,9 @@ The generated outputs are:
 - `results/instance_difficulty_by_domain.csv`;
 - `results/unanimous_error_instances.csv`.
 
-The instance-difficulty categories are empirical summaries of prediction behavior across the evaluated model set and should not be interpreted as intrinsic or model-independent properties of the benchmark instances.
+The instance-difficulty categories are empirical summaries of prediction behavior across the evaluated model set. They should not be interpreted as intrinsic, annotation-independent, or model-independent properties of the benchmark instances.
+
+Similarly, unanimously misclassified instances are retained as reproducibility and qualitative-analysis resources. Unanimous model failure does not by itself demonstrate annotation error, label ambiguity, or intrinsic instance difficulty.
 
 ## Figure Generation
 
@@ -285,13 +311,15 @@ The experimental framework additionally provides:
 - Cohen's kappa analysis;
 - empirical instance-difficulty analysis;
 - domain-specific difficulty distributions;
-- identification of unanimous model failures.
+- identification of unanimous model failures;
+- qualitative resources for the analysis of recurrent model errors.
 
 ## Reproducibility
 
 The repository provides:
 
-- fixed train, development, and test partitions;
+- fixed training, development, and test partitions;
+- the gold-labeled test partition used for evaluation and analysis;
 - complete prediction outputs for all evaluated systems;
 - seed-level predictions for supervised transformer models;
 - majority-vote predictions used in the main comparison;
@@ -301,42 +329,81 @@ The repository provides:
 - paired statistical significance testing;
 - model-agreement and empirical instance-difficulty analysis;
 - figure-generation scripts;
-- generated tables and figures used to support the manuscript analyses.
+- generated tables and figures used to support the manuscript analyses;
+- fully pinned Python dependencies;
+- machine-readable citation metadata;
+- machine-readable Zenodo archival metadata.
 
-Experiments involving proprietary API-based models require valid API credentials and may be affected by future changes to externally hosted model endpoints. The archived prediction outputs and result files are provided to preserve the exact outputs used in the reported analyses.
+The prediction outputs and result files included in the archived release correspond to the outputs used in the manuscript analyses.
 
-## Dataset Repository
+Experiments involving proprietary API-based models require valid API credentials and may be affected by future changes to externally hosted model endpoints. Experiments involving public pretrained models may also be affected by changes to model repositories, software libraries, hardware availability, or numerical behavior across computational platforms.
 
-The benchmark data, official partitions, and complete annotation guidelines are available in the companion repository:
+The inclusion of fixed partitions, prediction outputs, intermediate results, statistical outputs, and analysis scripts is intended to support reproduction of the reported analyses independently of future model-serving availability.
 
-`danielgbaena/spanish-hope-multidomain`
+## Relationship to the Dataset Repository
+
+This repository contains the experimental framework and reproducibility materials associated with SpanishHopeMultidomain.
+
+The companion dataset repository contains:
+
+- the benchmark data;
+- the official train, development, and test partitions;
+- the gold-labeled test partition for reproducibility;
+- the annotation guidelines;
+- dataset-level documentation and metadata.
+
+Dataset repository:
+
+`https://github.com/danielgbaena/spanish-hope-multidomain`
+
+The software and dataset repositories are maintained separately so that the benchmark data and the experimental framework can be independently versioned, archived, cited, reused, and extended.
 
 ## Citation
 
-If you use SpanishHopeMultidomain or the accompanying experimental framework, please cite the associated manuscript.
+This repository includes a `CITATION.cff` file with machine-readable citation metadata for the software artifact.
+
+If you use the experimental framework, scripts, prediction outputs, statistical-analysis resources, or other reproducibility materials from this repository, please cite the archived software release using the citation information provided by the corresponding Zenodo record.
+
+If you use the SpanishHopeMultidomain dataset, please also cite the corresponding archived dataset release.
+
+The associated manuscript is currently in preparation:
 
 ```bibtex
-@article{garciabaena2026crossdomain,
-  title   = {Cross-Domain Generalization of Hope Speech Detection Across Vulnerable Communities: A Benchmark Study of Supervised Models and Large Language Models},
-  author  = {García-Baena, Daniel and García-Cumbreras, Miguel Ángel and Jiménez-Zafra, Salud María},
-  year    = {2026},
-  note    = {Manuscript under review}
+@unpublished{garciabaena2026crossdomain,
+  title  = {Cross-Domain Generalization of Hope Speech Detection Across Vulnerable Communities: A Benchmark Study of Supervised Models and Large Language Models},
+  author = {García-Baena, Daniel and García-Cumbreras, Miguel Ángel and Jiménez-Zafra, Salud María},
+  year   = {2026},
+  note   = {Manuscript in preparation}
 }
 ```
 
-The citation metadata will be updated when publication information becomes available.
+Publication metadata will be updated when the manuscript is published.
+
+## Archival and Versioning
+
+Stable releases of this repository are intended to be archived in Zenodo.
+
+Each archived release preserves a versioned snapshot of the experimental framework, prediction outputs, analysis scripts, statistical results, and associated reproducibility materials.
+
+The first archival release is version `v1.0.0`.
+
+Future changes that materially modify the software, experimental resources, analyses, or documentation should be published as new versioned releases rather than silently modifying the archived artifact.
 
 ## Ethical Considerations
 
 The benchmark contains social media posts discussing vulnerable communities and may include offensive, discriminatory, or emotionally sensitive language.
 
-The benchmark and experimental resources are intended exclusively for research purposes. Model predictions should not be interpreted as autonomous moderation decisions or as assessments of individual social media users.
+The benchmark and experimental resources are intended exclusively for research purposes. Model predictions should not be interpreted as autonomous moderation decisions, clinical assessments, or assessments of individual social media users.
 
-Researchers using the benchmark should consider the ethical implications of socially oriented NLP research, including privacy, representational limitations, annotation subjectivity, potential model biases, and the risks associated with deployment beyond the controlled benchmark setting.
+Researchers using the benchmark should consider the ethical implications of socially oriented NLP research, including privacy, representational limitations, annotation subjectivity, potential model biases, domain-dependent behavior, and the risks associated with deployment beyond the controlled benchmark setting.
+
+The empirical instance-difficulty and unanimous-error resources included in this repository characterize the behavior of the evaluated model set and should not be used as standalone evidence about individual users, communities, or the inherent validity of specific social media posts.
 
 ## License
 
-Reuse and redistribution of the materials in this repository are governed by the terms specified in the `LICENSE` file.
+The software and associated documentation in this repository are released under the MIT License. See the `LICENSE` file for the complete license terms.
+
+The companion dataset repository is separately versioned and licensed. Users of the dataset should consult the license and usage conditions provided in the dataset repository.
 
 ## Contact
 
