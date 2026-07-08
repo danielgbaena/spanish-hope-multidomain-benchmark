@@ -1,17 +1,17 @@
-instance_id,domain,gold,SVM_prediction,SVM_correct,BETO_prediction,BETO_correct,RoBERTuito_prediction,RoBERTuito_correct,Qwen2.5-7B_prediction,Qwen2.5-7B_correct,GPT-4o-mini_prediction,GPT-4o-mini_correct,GPT-4.1-mini_prediction,GPT-4.1-mini_correct,n_models_correct,n_model_errors,model_error_rate,model_relative_difficulty
-1624910011762724864,Obesity,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1646154218569449472,Obesity,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1595795324576051200,Obesity,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1360095468055916288,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1600753360839536640,Obesity,NHS,HS,0,HS,0,HS,0,HS,0,HS,0,HS,0,0,6,1.0,hard
-1419450898774904832,LGBT,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1628312499152986112,LGBT,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1600189618351411200,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1594064712265703424,Obesity,NHS,HS,0,HS,0,HS,0,HS,0,HS,0,HS,0,0,6,1.0,hard
-1319370909518528512,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1293472759847292928,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1622885959254540288,Obesity,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1550118428794490880,LGBT,NHS,HS,0,HS,0,HS,0,HS,0,HS,0,HS,0,0,6,1.0,hard
-1299828375582801920,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1604946742314782720,Obesity,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
-1315616859572629504,Racism,HS,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,NHS,0,0,6,1.0,hard
+id,text,gold,domain,SVM_prediction,SVM_correct,BETO_prediction,BETO_correct,RoBERTuito_prediction,RoBERTuito_correct,Qwen2.5-7B_prediction,Qwen2.5-7B_correct,GPT-4o-mini_prediction,GPT-4o-mini_correct,GPT-4.1-mini_prediction,GPT-4.1-mini_correct,n_models_correct,n_model_errors,model_error_rate,difficulty_group
+1624910011762724864,"No me importa nada me voy a pedir un té de bolitas, anorexia who",hs,obesity,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1646154218569449472,La futbolista Vanessa Andreu consigue que la trasladen a un centro para tratar su anorexia nerviosa,hs,obesity,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1595795324576051200,"yo estuve super gordita y finalmente el dolor de espalda, la hinchazon de pies, la poca resistencia fisica, hipertension y resistencia a la insulina me tenia mal, fui al medico hice dieta baje de peso y mi salud y mi animo mejoró mucho. El sobrepeso no es algo bueno o normal.",hs,obesity,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1360095468055916288,"Hay un montón de españoles que rechazan trabajos que sólo hacen los inmigrantes, y te digo una cosa, si un inmigrante sin conocer el idioma y sin tener medios de ningún tipo llega y te quita un puesto de trabajo que quieres es porque algo no haces bien.",hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1600753360839536640,"SU CARITA POR DIOS. TE AMO GORDO, ERES LO MÁS LINDO DEL MUNDO 😭",nhs,obesity,hs,False,hs,False,hs,False,hs,False,hs,False,hs,False,0,6,1.0,hard
+1419450898774904832,Yo si me posiciono. Me encuentro claramente del lado de las mujeres trans. Y vosotras deberíais acabar en la puta cárcel por vuestro odio hacia el diferente.,hs,lgbt,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1628312499152986112,"Si dejáramos a las personas trans usar la ley trans no habría ningún problema de ningún tipo, pero no,  la gente es anormal",hs,lgbt,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1600189618351411200,"Después de ver en Tendencias España lo de ""caña al moro"" y demás campaña asquerosa, sólo puedo alegrarme de la victoria de Marruecos.",hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1594064712265703424,Yo diciéndole “feliz día” a mi flaco porque la tiene clara con la igualdad y me salió con “de igual manera amor”. Resulta que hoy es 19! 😅,nhs,obesity,hs,False,hs,False,hs,False,hs,False,hs,False,hs,False,0,6,1.0,hard
+1319370909518528512,"El Consejo de Europa pide incluir el antigitanismo en el Código Penal español como circunstancia agravante en la comisión de un delito, como ya lo es por ejemplo el antisemitismo. El antigitanismo (tb institucional) viene de lejos",hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1293472759847292928,El paro juvenil es del 33%. Si un inmigrante te quita el puesto de trabajo es que está más preparado que tú. No a los recortes.,hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1622885959254540288,"Es una obsesión y de las malas, no todo lo relacionado con la comida son calorias o azucares. Y me preocuparía que eso pudiese acabar en anorexia si hasta hablan de restringir frutas... Los nutricionistas existen y la salud mental se deberia revisar de vez en cuando",hs,obesity,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1550118428794490880,"Meet the  Staff: Victor Monroy (he/him), Research Assistant. “HQ es un lugar donde cualquier persona gay o transgénero puede sentirse bienvenido y seguro que recibirá la mejor atención para cuidar tanto su salud mental como sexual."". #MyHQToronto",nhs,lgbt,hs,False,hs,False,hs,False,hs,False,hs,False,hs,False,0,6,1.0,hard
+1299828375582801920,"Y por otra que es Gallega y no hace apología de nada. Llamar a los vascos terroristas, solo demuestra tu gran ignorancia.",hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1604946742314782720,"Por eso, pero mucha gente insta piensa en gordo=insano, y obvio lo mejor es estar en forma en tu peso y tal. Pero joder que la peña piensa que los que estamos gordos no podemos ni respirar y más de uno le adelanto por la derecha",hs,obesity,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
+1315616859572629504,"Y seguimos con un racismo institucional muy grave que hace que 3 niñatas de mierda en el metro de Madrid se permitan tratar de ""panchito"" a un señor que lleva más que ellas en España o que a mis amigas latinas se les pregunte con cara de curiosidad cómo es que sean universitarias",hs,racism,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,nhs,False,0,6,1.0,hard
