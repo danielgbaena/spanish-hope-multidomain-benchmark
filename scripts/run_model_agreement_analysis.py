@@ -1,5 +1,64 @@
-from pathlib import Path
+#!/usr/bin/env python3
+
+"""
+run_model_agreement_analysis.py
+
+Model-agreement, model-relative instance-difficulty, unanimous-error
+extraction, and qualitative-error coding-template generation for the
+SpanishHopeMultidomain benchmark.
+
+The script performs the following analyses:
+
+1. Resolves the fixed prediction files used by the benchmark analyses.
+2. Loads one model-level prediction vector for each evaluated system:
+   - SVM
+   - BETO majority-vote predictions
+   - RoBERTuito majority-vote predictions
+   - Qwen2.5-7B predictions
+   - GPT-4o-mini predictions
+   - GPT-4.1-mini predictions
+3. Validates that all models refer to the same 400 test instances in
+   identical order, with identical gold labels and domain assignments.
+4. Computes pairwise raw prediction agreement and Cohen's kappa.
+5. Writes:
+   - model_agreement.csv
+   - model_agreement_matrix.csv
+6. Computes, for every test instance:
+   - number of correct model predictions
+   - number of model errors
+   - proportion of model errors
+   - model-relative instance-difficulty group
+7. Writes:
+   - instance_difficulty.csv
+   - instance_difficulty_by_domain.csv
+8. Extracts instances misclassified by all six model-level prediction
+   vectors.
+9. Writes:
+   - unanimous_error_instances.csv
+10. Creates a reproducible qualitative-error coding template containing
+    all unanimous errors and empty coding fields for two independent
+    coders and final consensus adjudication.
+11. Writes:
+    - qualitative_error_coding_template.csv
+
+Important methodological note
+-----------------------------
+The easy/moderate/hard categories produced by this script are
+MODEL-RELATIVE empirical groupings based on the number of errors among
+the six evaluated model-level prediction vectors. They must not be
+interpreted as intrinsic properties of the benchmark instances.
+
+The qualitative coding template is an input to a subsequent manual
+qualitative analysis. This script does not assign linguistic or pragmatic
+error categories automatically and does not claim to perform the manual
+qualitative analysis itself.
+"""
+
+from __future__ import annotations
+
 from itertools import combinations
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -7,503 +66,514 @@ from sklearn.metrics import cohen_kappa_score
 
 
 # =============================================================================
-# Configuration
+# CONFIGURATION
 # =============================================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RESULTS_DIR = PROJECT_ROOT / "results"
-DATA_DIR = PROJECT_ROOT / "data"
+EXPECTED_N_INSTANCES = 400
 
-TEST_GOLD_FILE = DATA_DIR / "test_gold.csv"
+MODEL_ORDER = [
+    "SVM",
+    "BETO",
+    "RoBERTuito",
+    "Qwen2.5-7B",
+    "GPT-4o-mini",
+    "GPT-4.1-mini",
+]
 
-MODEL_FILES = {
-    "SVM": RESULTS_DIR / "svm_predictions.csv",
-    "BETO": RESULTS_DIR / "beto_majority_predictions.csv",
-    "RoBERTuito": RESULTS_DIR / "robertuito_majority_predictions.csv",
-    "GPT-4.1-mini": RESULTS_DIR / "gpt41_mini_predictions.csv",
-    "GPT-4o-mini": RESULTS_DIR / "gpt4o_mini_predictions.csv",
-    "Qwen2.5-7B": RESULTS_DIR / "qwen25_7b_predictions.csv",
+PREDICTION_FILES = {
+    "SVM": "results/svm_predictions.csv",
+    "BETO": "results/beto_majority_predictions.csv",
+    "RoBERTuito": "results/robertuito_majority_predictions.csv",
+    "Qwen2.5-7B": "results/qwen25_7b_predictions.csv",
+    "GPT-4o-mini": "results/gpt4o_mini_predictions.csv",
+    "GPT-4.1-mini": "results/gpt41_mini_predictions.csv",
 }
 
-REQUIRED_PREDICTION_COLUMNS = {
-    "id",
-    "gold",
-    "prediction",
-    "topic",
-}
+OUTPUT_MODEL_AGREEMENT = "results/model_agreement.csv"
+OUTPUT_MODEL_AGREEMENT_MATRIX = "results/model_agreement_matrix.csv"
+OUTPUT_INSTANCE_DIFFICULTY = "results/instance_difficulty.csv"
+OUTPUT_INSTANCE_DIFFICULTY_BY_DOMAIN = (
+    "results/instance_difficulty_by_domain.csv"
+)
+OUTPUT_UNANIMOUS_ERRORS = "results/unanimous_error_instances.csv"
+OUTPUT_QUALITATIVE_TEMPLATE = (
+    "results/qualitative_error_coding_template.csv"
+)
 
-REQUIRED_TEST_GOLD_COLUMNS = {
+
+# Candidate column names supported by the loader.
+
+ID_COLUMN_CANDIDATES = [
     "id",
+    "instance_id",
+    "post_id",
+    "index",
+    "idx",
+]
+
+TEXT_COLUMN_CANDIDATES = [
     "text",
-    "category",
-    "topic",
-}
+    "tweet",
+    "post",
+    "sentence",
+    "content",
+]
 
-DIFFICULTY_ORDER = [
-    "easy",
-    "moderate",
-    "hard",
+DOMAIN_COLUMN_CANDIDATES = [
+    "domain",
+    "topic",
+    "category",
+]
+
+GOLD_COLUMN_CANDIDATES = [
+    "gold",
+    "gold_label",
+    "label",
+    "true_label",
+    "y_true",
+    "target",
+]
+
+PREDICTION_COLUMN_CANDIDATES = [
+    "prediction",
+    "predicted_label",
+    "pred",
+    "y_pred",
+    "output",
 ]
 
 
 # =============================================================================
-# Prediction-file loading and validation
+# GENERAL UTILITIES
 # =============================================================================
 
-def load_prediction_file(model_name, file_path):
+
+def print_section(title: str) -> None:
+    print()
+    print("=" * 40)
+    print(title)
+    print("=" * 40)
+
+
+def find_repository_root() -> Path:
     """
-    Load and validate one model prediction file.
+    Locate the repository root.
 
-    Each prediction file must contain:
-        id, gold, prediction, topic
+    Expected repository structure:
 
-    Returns
-    -------
-    pandas.DataFrame
-        Validated prediction dataframe.
+        repository/
+            scripts/
+                run_model_agreement_analysis.py
+            results/
+                ...
+
+    The function first uses the script location and then falls back to
+    the current working directory.
     """
 
-    if not file_path.exists():
-        raise FileNotFoundError(
-            f"Prediction file for {model_name} not found: {file_path}"
-        )
+    script_path = Path(__file__).resolve()
+    candidate = script_path.parent.parent
 
-    df = pd.read_csv(file_path)
+    if (candidate / "results").exists():
+        return candidate
 
-    missing_columns = (
-        REQUIRED_PREDICTION_COLUMNS.difference(df.columns)
+    cwd = Path.cwd().resolve()
+
+    if (cwd / "results").exists():
+        return cwd
+
+    raise FileNotFoundError(
+        "Could not locate the repository root. "
+        "Expected a repository containing a 'results' directory."
     )
 
-    if missing_columns:
-        raise ValueError(
-            f"{model_name}: missing required columns "
-            f"{sorted(missing_columns)}"
-        )
 
-    df = df[
-        [
-            "id",
-            "gold",
-            "prediction",
-            "topic",
-        ]
-    ].copy()
+def normalize_column_name(column: str) -> str:
+    return str(column).strip().lower()
 
-    if df["id"].duplicated().any():
-        duplicated_ids = df.loc[
-            df["id"].duplicated(),
-            "id",
-        ].tolist()
 
-        raise ValueError(
-            f"{model_name}: duplicated instance IDs detected: "
-            f"{duplicated_ids[:10]}"
-        )
+def find_column(
+    dataframe: pd.DataFrame,
+    candidates: Sequence[str],
+) -> Optional[str]:
+    """
+    Find the first dataframe column matching one of the candidate names.
+    Matching is case-insensitive.
+    """
 
-    if df.isnull().any().any():
-        null_columns = df.columns[
-            df.isnull().any()
-        ].tolist()
-
-        raise ValueError(
-            f"{model_name}: missing values detected in columns "
-            f"{null_columns}"
-        )
-
-    valid_labels = {
-        "hs",
-        "nhs",
+    normalized_to_original = {
+        normalize_column_name(column): column
+        for column in dataframe.columns
     }
 
-    invalid_gold_labels = (
-        set(df["gold"].unique()) - valid_labels
-    )
+    for candidate in candidates:
+        normalized_candidate = normalize_column_name(candidate)
 
-    invalid_prediction_labels = (
-        set(df["prediction"].unique()) - valid_labels
-    )
+        if normalized_candidate in normalized_to_original:
+            return normalized_to_original[normalized_candidate]
 
-    if invalid_gold_labels:
+    return None
+
+
+def require_column(
+    dataframe: pd.DataFrame,
+    candidates: Sequence[str],
+    description: str,
+    file_path: Path,
+) -> str:
+    column = find_column(dataframe, candidates)
+
+    if column is None:
         raise ValueError(
-            f"{model_name}: invalid gold labels detected: "
-            f"{sorted(invalid_gold_labels)}"
+            f"Could not identify the {description} column in "
+            f"{file_path}.\n"
+            f"Available columns: {list(dataframe.columns)}"
         )
 
-    if invalid_prediction_labels:
-        raise ValueError(
-            f"{model_name}: invalid prediction labels detected: "
-            f"{sorted(invalid_prediction_labels)}"
-        )
-
-    return df
+    return column
 
 
-def validate_common_instances(prediction_dfs):
+def normalize_label(value) -> str:
     """
-    Verify that all prediction files contain exactly the same
-    test instances and identical gold labels and topic assignments.
+    Normalize common binary label representations to HS/NHS.
 
-    Returns
-    -------
-    pandas.DataFrame
-        Reference dataframe containing id, gold, and topic.
-    """
-
-    model_names = list(prediction_dfs.keys())
-
-    reference_model = model_names[0]
-
-    reference_df = (
-        prediction_dfs[reference_model]
-        .sort_values("id")
-        .reset_index(drop=True)
-    )
-
-    reference_ids = reference_df["id"].tolist()
-
-    for model_name in model_names[1:]:
-
-        current_df = (
-            prediction_dfs[model_name]
-            .sort_values("id")
-            .reset_index(drop=True)
-        )
-
-        current_ids = current_df["id"].tolist()
-
-        if current_ids != reference_ids:
-            raise ValueError(
-                f"{model_name}: test-instance IDs do not match "
-                f"those of {reference_model}."
-            )
-
-        if not current_df["gold"].equals(
-            reference_df["gold"]
-        ):
-            raise ValueError(
-                f"{model_name}: gold labels do not match "
-                f"those of {reference_model}."
-            )
-
-        if not current_df["topic"].equals(
-            reference_df["topic"]
-        ):
-            raise ValueError(
-                f"{model_name}: topic assignments do not match "
-                f"those of {reference_model}."
-            )
-
-    return reference_df[
-        [
-            "id",
-            "gold",
-            "topic",
-        ]
-    ].copy()
-
-
-# =============================================================================
-# Gold test-set loading and validation
-# =============================================================================
-
-def load_test_gold(file_path):
-    """
-    Load and validate the official gold test partition.
-
-    The official benchmark file uses:
-        id, text, category, topic
-
-    The category column contains the gold labels and is renamed
-    internally to gold so that the analysis code uses a consistent
-    schema across prediction files and the official test partition.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Validated gold test dataframe with columns:
-        id, text, gold, topic
+    The function intentionally fails on unknown values instead of silently
+    guessing labels.
     """
 
-    if not file_path.exists():
-        raise FileNotFoundError(
-            f"Gold test file not found: {file_path}"
-        )
+    if pd.isna(value):
+        raise ValueError("Encountered a missing label.")
 
-    df = pd.read_csv(file_path)
+    raw = str(value).strip()
+    normalized = raw.lower()
 
-    missing_columns = (
-        REQUIRED_TEST_GOLD_COLUMNS.difference(df.columns)
+    compact = (
+        normalized
+        .replace("_", " ")
+        .replace("-", " ")
+        .replace('"', "")
+        .replace("'", "")
     )
 
-    if missing_columns:
-        raise ValueError(
-            f"Gold test file: missing required columns "
-            f"{sorted(missing_columns)}"
-        )
+    compact = " ".join(compact.split())
 
-    df = df[
-        [
-            "id",
-            "text",
-            "category",
-            "topic",
-        ]
-    ].copy()
-
-    # Rename the official benchmark label column to the internal
-    # analysis name used throughout the reproducibility pipeline.
-    df = df.rename(
-        columns={
-            "category": "gold",
-        }
-    )
-
-    if df["id"].duplicated().any():
-        duplicated_ids = df.loc[
-            df["id"].duplicated(),
-            "id",
-        ].tolist()
-
-        raise ValueError(
-            f"Gold test file: duplicated instance IDs detected: "
-            f"{duplicated_ids[:10]}"
-        )
-
-    if df.isnull().any().any():
-        null_columns = df.columns[
-            df.isnull().any()
-        ].tolist()
-
-        raise ValueError(
-            f"Gold test file: missing values detected in columns "
-            f"{null_columns}"
-        )
-
-    valid_labels = {
+    hs_values = {
         "hs",
-        "nhs",
+        "hope speech",
+        "hope",
+        "1",
+        "true",
     }
 
-    invalid_gold_labels = (
-        set(df["gold"].unique()) - valid_labels
+    nhs_values = {
+        "nhs",
+        "non hope speech",
+        "nonhope speech",
+        "non hope",
+        "0",
+        "false",
+    }
+
+    if compact in hs_values:
+        return "HS"
+
+    if compact in nhs_values:
+        return "NHS"
+
+    raise ValueError(
+        f"Unsupported label value: {raw!r}. "
+        "Expected a recognizable HS/NHS label."
     )
 
-    if invalid_gold_labels:
-        raise ValueError(
-            f"Gold test file: invalid gold labels detected: "
-            f"{sorted(invalid_gold_labels)}"
-        )
 
-    return df
-
-
-def validate_test_gold(test_gold_df, reference_df):
+def normalize_domain(value) -> str:
     """
-    Verify that the official gold test partition contains exactly
-    the same IDs, gold labels, and topic assignments as the
-    prediction files.
+    Normalize benchmark domain names while preserving unknown non-empty
+    domain labels.
     """
 
-    test_gold_sorted = (
-        test_gold_df
-        .sort_values("id")
-        .reset_index(drop=True)
-    )
+    if pd.isna(value):
+        raise ValueError("Encountered a missing domain value.")
 
-    reference_sorted = (
-        reference_df
-        .sort_values("id")
-        .reset_index(drop=True)
-    )
+    raw = str(value).strip()
+    normalized = raw.lower()
 
-    if test_gold_sorted["id"].tolist() != (
-        reference_sorted["id"].tolist()
-    ):
-        raise ValueError(
-            "Gold test file IDs do not match prediction-file IDs."
-        )
+    mapping = {
+        "lgbt": "LGBT",
+        "lgbtq": "LGBT",
+        "lgbtq+": "LGBT",
+        "obesity": "Obesity",
+        "obesidad": "Obesity",
+        "racism": "Racism",
+        "racismo": "Racism",
+    }
 
-    if not test_gold_sorted["gold"].equals(
-        reference_sorted["gold"]
-    ):
-        raise ValueError(
-            "Gold labels in test_gold.csv do not match "
-            "prediction-file gold labels."
-        )
-
-    if not test_gold_sorted["topic"].equals(
-        reference_sorted["topic"]
-    ):
-        raise ValueError(
-            "Topic assignments in test_gold.csv do not match "
-            "prediction-file topic assignments."
-        )
+    return mapping.get(normalized, raw)
 
 
-# =============================================================================
-# Prediction matrix
-# =============================================================================
+def resolve_prediction_files(
+    repository_root: Path,
+) -> Dict[str, Path]:
+    resolved = {}
 
-def build_prediction_matrix(prediction_dfs, reference_df):
-    """
-    Construct a dataframe containing the gold labels, topics,
-    and predictions from every evaluated model.
+    for model in MODEL_ORDER:
+        relative_path = PREDICTION_FILES[model]
+        absolute_path = repository_root / relative_path
 
-    Returns
-    -------
-    pandas.DataFrame
-        Combined prediction matrix.
-    """
-
-    prediction_matrix = reference_df.copy()
-
-    for model_name, df in prediction_dfs.items():
-
-        prediction_column = f"{model_name}_prediction"
-
-        model_predictions = (
-            df[
-                [
-                    "id",
-                    "prediction",
-                ]
-            ]
-            .rename(
-                columns={
-                    "prediction": prediction_column,
-                }
+        if not absolute_path.exists():
+            raise FileNotFoundError(
+                f"Prediction file for {model} was not found:\n"
+                f"  {absolute_path}"
             )
-        )
 
-        prediction_matrix = prediction_matrix.merge(
-            model_predictions,
-            on="id",
-            how="inner",
-            validate="one_to_one",
-        )
+        resolved[model] = absolute_path
 
-    return prediction_matrix
+    return resolved
 
 
 # =============================================================================
-# Pairwise model agreement
+# PREDICTION LOADING
 # =============================================================================
 
-def compute_pairwise_agreement(
-    prediction_matrix,
-    model_names,
-):
-    """
-    Compute pairwise raw agreement and Cohen's kappa for every
-    pair of evaluated systems.
 
-    Returns
-    -------
-    pandas.DataFrame
-        Pairwise agreement results.
+def load_prediction_file(
+    model_name: str,
+    file_path: Path,
+) -> pd.DataFrame:
+    """
+    Load and standardize one prediction file.
+
+    Returned columns:
+
+        instance_id
+        text               (if available)
+        domain             (if available)
+        gold
+        prediction
     """
 
+    dataframe = pd.read_csv(file_path)
+
+    if len(dataframe) != EXPECTED_N_INSTANCES:
+        raise ValueError(
+            f"{model_name}: expected {EXPECTED_N_INSTANCES} rows, "
+            f"found {len(dataframe)} in {file_path}."
+        )
+
+    gold_column = require_column(
+        dataframe,
+        GOLD_COLUMN_CANDIDATES,
+        "gold-label",
+        file_path,
+    )
+
+    prediction_column = require_column(
+        dataframe,
+        PREDICTION_COLUMN_CANDIDATES,
+        "prediction",
+        file_path,
+    )
+
+    id_column = find_column(
+        dataframe,
+        ID_COLUMN_CANDIDATES,
+    )
+
+    text_column = find_column(
+        dataframe,
+        TEXT_COLUMN_CANDIDATES,
+    )
+
+    domain_column = find_column(
+        dataframe,
+        DOMAIN_COLUMN_CANDIDATES,
+    )
+
+    standardized = pd.DataFrame()
+
+    if id_column is not None:
+        standardized["instance_id"] = dataframe[id_column]
+    else:
+        standardized["instance_id"] = np.arange(len(dataframe))
+
+    if text_column is not None:
+        standardized["text"] = dataframe[text_column].fillna("").astype(str)
+
+    if domain_column is not None:
+        standardized["domain"] = dataframe[domain_column].map(
+            normalize_domain
+        )
+
+    standardized["gold"] = dataframe[gold_column].map(normalize_label)
+
+    standardized["prediction"] = dataframe[prediction_column].map(
+        normalize_label
+    )
+
+    if standardized["instance_id"].duplicated().any():
+        duplicated = standardized.loc[
+            standardized["instance_id"].duplicated(keep=False),
+            "instance_id",
+        ].tolist()
+
+        raise ValueError(
+            f"{model_name}: duplicate instance IDs found: {duplicated[:10]}"
+        )
+
+    return standardized
+
+
+def validate_common_test_instances(
+    predictions: Dict[str, pd.DataFrame],
+) -> None:
+    """
+    Validate identical instance ordering, gold labels, domain assignments,
+    and texts whenever those fields are available.
+    """
+
+    reference_model = MODEL_ORDER[0]
+    reference = predictions[reference_model]
+
+    for model in MODEL_ORDER[1:]:
+        current = predictions[model]
+
+        if len(current) != len(reference):
+            raise ValueError(
+                f"{model}: number of predictions differs from "
+                f"{reference_model}."
+            )
+
+        if not np.array_equal(
+            reference["instance_id"].to_numpy(),
+            current["instance_id"].to_numpy(),
+        ):
+            raise ValueError(
+                f"{model}: instance ordering differs from "
+                f"{reference_model}."
+            )
+
+        if not np.array_equal(
+            reference["gold"].to_numpy(),
+            current["gold"].to_numpy(),
+        ):
+            raise ValueError(
+                f"{model}: gold-label ordering differs from "
+                f"{reference_model}."
+            )
+
+        if "domain" in reference.columns and "domain" in current.columns:
+            if not np.array_equal(
+                reference["domain"].to_numpy(),
+                current["domain"].to_numpy(),
+            ):
+                raise ValueError(
+                    f"{model}: domain ordering differs from "
+                    f"{reference_model}."
+                )
+
+        if "text" in reference.columns and "text" in current.columns:
+            if not np.array_equal(
+                reference["text"].to_numpy(),
+                current["text"].to_numpy(),
+            ):
+                raise ValueError(
+                    f"{model}: text ordering differs from "
+                    f"{reference_model}."
+                )
+
+
+def select_metadata_source(
+    predictions: Dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """
+    Select the richest prediction dataframe as metadata source.
+
+    Preference is given to a dataframe containing both text and domain.
+    """
+
+    for model in MODEL_ORDER:
+        dataframe = predictions[model]
+
+        if "text" in dataframe.columns and "domain" in dataframe.columns:
+            return dataframe.copy()
+
+    for model in MODEL_ORDER:
+        dataframe = predictions[model]
+
+        if "domain" in dataframe.columns:
+            return dataframe.copy()
+
+    return predictions[MODEL_ORDER[0]].copy()
+
+
+# =============================================================================
+# PAIRWISE MODEL AGREEMENT
+# =============================================================================
+
+
+def compute_pairwise_model_agreement(
+    predictions: Dict[str, pd.DataFrame],
+) -> pd.DataFrame:
     rows = []
 
-    for model_a, model_b in combinations(
-        model_names,
-        2,
-    ):
+    for model_1, model_2 in combinations(MODEL_ORDER, 2):
+        prediction_1 = predictions[model_1]["prediction"].to_numpy()
+        prediction_2 = predictions[model_2]["prediction"].to_numpy()
 
-        column_a = f"{model_a}_prediction"
-        column_b = f"{model_b}_prediction"
-
-        predictions_a = prediction_matrix[column_a]
-        predictions_b = prediction_matrix[column_b]
-
-        agreement_mask = (
-            predictions_a == predictions_b
+        raw_agreement = float(
+            np.mean(prediction_1 == prediction_2)
         )
 
-        n_instances = len(prediction_matrix)
-
-        n_agreements = int(
-            agreement_mask.sum()
+        kappa = float(
+            cohen_kappa_score(prediction_1, prediction_2)
         )
 
-        n_disagreements = (
-            n_instances - n_agreements
+        n_agree = int(
+            np.sum(prediction_1 == prediction_2)
         )
 
-        agreement_rate = (
-            n_agreements / n_instances
-        )
-
-        kappa = cohen_kappa_score(
-            predictions_a,
-            predictions_b,
+        n_disagree = int(
+            np.sum(prediction_1 != prediction_2)
         )
 
         rows.append(
             {
-                "model_a": model_a,
-                "model_b": model_b,
-                "n_instances": n_instances,
-                "n_agreements": n_agreements,
-                "n_disagreements": n_disagreements,
-                "agreement_rate": agreement_rate,
+                "model_1": model_1,
+                "model_2": model_2,
+                "raw_agreement": raw_agreement,
                 "cohen_kappa": kappa,
+                "n_agree": n_agree,
+                "n_disagree": n_disagree,
+                "n_instances": len(prediction_1),
             }
         )
 
-    agreement_df = pd.DataFrame(rows)
+    result = pd.DataFrame(rows)
 
-    agreement_df = agreement_df.sort_values(
-        [
-            "agreement_rate",
-            "cohen_kappa",
-        ],
-        ascending=[
-            False,
-            False,
-        ],
+    return result.sort_values(
+        by=["raw_agreement", "cohen_kappa"],
+        ascending=[False, False],
     ).reset_index(drop=True)
 
-    return agreement_df
 
-
-def build_agreement_matrix(
-    agreement_df,
-    model_names,
-):
-    """
-    Build a symmetric matrix of pairwise raw agreement rates.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Symmetric agreement matrix.
-    """
-
+def compute_agreement_matrix(
+    predictions: Dict[str, pd.DataFrame],
+) -> pd.DataFrame:
     matrix = pd.DataFrame(
-        np.eye(len(model_names)),
-        index=model_names,
-        columns=model_names,
+        index=MODEL_ORDER,
+        columns=MODEL_ORDER,
+        dtype=float,
     )
 
-    for _, row in agreement_df.iterrows():
+    for model_1 in MODEL_ORDER:
+        prediction_1 = predictions[model_1]["prediction"].to_numpy()
 
-        model_a = row["model_a"]
-        model_b = row["model_b"]
+        for model_2 in MODEL_ORDER:
+            prediction_2 = predictions[model_2]["prediction"].to_numpy()
 
-        agreement_rate = row[
-            "agreement_rate"
-        ]
-
-        matrix.loc[
-            model_a,
-            model_b,
-        ] = agreement_rate
-
-        matrix.loc[
-            model_b,
-            model_a,
-        ] = agreement_rate
+            matrix.loc[model_1, model_2] = np.mean(
+                prediction_1 == prediction_2
+            )
 
     matrix.index.name = "model"
 
@@ -511,22 +581,25 @@ def build_agreement_matrix(
 
 
 # =============================================================================
-# Empirical instance difficulty
+# MODEL-RELATIVE INSTANCE DIFFICULTY
 # =============================================================================
 
-def assign_difficulty_group(n_model_errors):
+
+def assign_model_relative_difficulty(
+    n_model_errors: int,
+) -> str:
     """
-    Assign an empirical instance-difficulty group relative to
-    the six evaluated systems.
+    Empirical grouping relative to the six evaluated model-level
+    prediction vectors.
 
-    easy:
-        0 or 1 model errors.
+    Easy:
+        0-1 model errors
 
-    moderate:
-        2 or 3 model errors.
+    Moderate:
+        2-3 model errors
 
-    hard:
-        4, 5, or 6 model errors.
+    Hard:
+        4-6 model errors
     """
 
     if n_model_errors <= 1:
@@ -539,666 +612,467 @@ def assign_difficulty_group(n_model_errors):
 
 
 def compute_instance_difficulty(
-    prediction_matrix,
-    model_names,
-):
-    """
-    Characterize empirical instance difficulty according to the
-    number of evaluated systems that misclassify each instance.
+    predictions: Dict[str, pd.DataFrame],
+    metadata: pd.DataFrame,
+) -> pd.DataFrame:
+    gold = predictions[MODEL_ORDER[0]]["gold"].to_numpy()
 
-    Returns
-    -------
-    pandas.DataFrame
-        Instance-level difficulty results.
-    """
-
-    difficulty_df = prediction_matrix.copy()
-
-    correctness_columns = []
-
-    for model_name in model_names:
-
-        prediction_column = (
-            f"{model_name}_prediction"
-        )
-
-        correctness_column = (
-            f"{model_name}_correct"
-        )
-
-        difficulty_df[correctness_column] = (
-            difficulty_df[prediction_column]
-            == difficulty_df["gold"]
-        ).astype(int)
-
-        correctness_columns.append(
-            correctness_column
-        )
-
-    difficulty_df["n_model_correct"] = (
-        difficulty_df[
-            correctness_columns
-        ].sum(axis=1)
-    )
-
-    difficulty_df["n_model_errors"] = (
-        len(model_names)
-        - difficulty_df["n_model_correct"]
-    )
-
-    difficulty_df["error_rate"] = (
-        difficulty_df["n_model_errors"]
-        / len(model_names)
-    )
-
-    difficulty_df["difficulty_group"] = (
-        difficulty_df["n_model_errors"]
-        .apply(assign_difficulty_group)
-    )
-
-    difficulty_df["difficulty_group"] = pd.Categorical(
-        difficulty_df["difficulty_group"],
-        categories=DIFFICULTY_ORDER,
-        ordered=True,
-    )
-
-    difficulty_df = difficulty_df.sort_values(
-        [
-            "n_model_errors",
-            "topic",
-            "id",
-        ],
-        ascending=[
-            False,
-            True,
-            True,
-        ],
-    ).reset_index(drop=True)
-
-    return difficulty_df
-
-
-def compute_global_difficulty_distribution(
-    difficulty_df,
-):
-    """
-    Compute the global empirical difficulty distribution.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Global difficulty distribution.
-    """
-
-    distribution = (
-        difficulty_df[
-            "difficulty_group"
-        ]
-        .value_counts(sort=False)
-        .rename("n_instances")
-        .to_frame()
-    )
-
-    distribution["percentage"] = (
-        100.0
-        * distribution["n_instances"]
-        / len(difficulty_df)
-    )
-
-    distribution["percentage"] = (
-        distribution["percentage"]
-        .round(2)
-    )
-
-    return distribution
-
-
-def compute_mean_errors_by_domain(
-    difficulty_df,
-):
-    """
-    Compute descriptive statistics for the number of model errors
-    within each evaluation domain.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Domain-level error summary.
-    """
-
-    summary = (
-        difficulty_df
-        .groupby("topic")["n_model_errors"]
-        .agg(
-            [
-                "count",
-                "mean",
-                "std",
-                "median",
-                "max",
-            ]
-        )
-    )
-
-    return summary
-
-
-def compute_difficulty_by_domain(
-    difficulty_df,
-):
-    """
-    Compute empirical difficulty-group distributions within each
-    evaluation domain.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Domain-level difficulty distributions.
-    """
-
-    difficulty_by_domain = (
-        difficulty_df
-        .groupby(
-            [
-                "topic",
-                "difficulty_group",
-            ],
-            observed=False,
-        )
-        .size()
-        .reset_index(
-            name="n_instances"
-        )
-    )
-
-    domain_sizes = (
-        difficulty_df
-        .groupby("topic")
-        .size()
-        .rename("domain_size")
-        .reset_index()
-    )
-
-    difficulty_by_domain = (
-        difficulty_by_domain.merge(
-            domain_sizes,
-            on="topic",
-            how="left",
-            validate="many_to_one",
-        )
-    )
-
-    difficulty_by_domain[
-        "percentage_within_domain"
-    ] = (
-        100.0
-        * difficulty_by_domain["n_instances"]
-        / difficulty_by_domain["domain_size"]
-    )
-
-    difficulty_by_domain[
-        "percentage_within_domain"
-    ] = (
-        difficulty_by_domain[
-            "percentage_within_domain"
-        ].round(2)
-    )
-
-    difficulty_by_domain = (
-        difficulty_by_domain[
-            [
-                "topic",
-                "difficulty_group",
-                "n_instances",
-                "percentage_within_domain",
-            ]
-        ]
-    )
-
-    return difficulty_by_domain
-
-
-# =============================================================================
-# Unanimous-error extraction
-# =============================================================================
-
-def extract_unanimous_errors(
-    difficulty_df,
-    test_gold_df,
-    model_names,
-):
-    """
-    Extract instances misclassified by every evaluated system and
-    merge them with the original post text.
-
-    The resulting output provides a reproducible basis for
-    qualitative inspection of shared cross-model failures.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Unanimously misclassified test instances.
-    """
-
-    n_models = len(model_names)
-
-    unanimous_errors = (
-        difficulty_df.loc[
-            difficulty_df["n_model_errors"]
-            == n_models
-        ]
-        .copy()
-    )
-
-    unanimous_errors = unanimous_errors.merge(
-        test_gold_df[
-            [
-                "id",
-                "text",
-                "gold",
-                "topic",
-            ]
-        ],
-        on="id",
-        how="left",
-        suffixes=(
-            "_analysis",
-            "_test_gold",
-        ),
-        validate="one_to_one",
-    )
-
-    if unanimous_errors["text"].isnull().any():
-        raise ValueError(
-            "Missing original text after merging unanimous errors "
-            "with test_gold.csv."
-        )
-
-    if not (
-        unanimous_errors["gold_analysis"]
-        == unanimous_errors["gold_test_gold"]
-    ).all():
-        raise ValueError(
-            "Gold-label inconsistency detected while extracting "
-            "unanimous errors."
-        )
-
-    if not (
-        unanimous_errors["topic_analysis"]
-        == unanimous_errors["topic_test_gold"]
-    ).all():
-        raise ValueError(
-            "Topic inconsistency detected while extracting "
-            "unanimous errors."
-        )
-
-    unanimous_errors = unanimous_errors.rename(
-        columns={
-            "gold_analysis": "gold",
-            "topic_analysis": "topic",
+    result = pd.DataFrame(
+        {
+            "instance_id": metadata["instance_id"],
         }
     )
 
-    prediction_columns = [
-        f"{model_name}_prediction"
-        for model_name in model_names
+    if "text" in metadata.columns:
+        result["text"] = metadata["text"]
+
+    if "domain" in metadata.columns:
+        result["domain"] = metadata["domain"]
+
+    result["gold"] = gold
+
+    correctness_columns = []
+
+    for model in MODEL_ORDER:
+        prediction = predictions[model]["prediction"].to_numpy()
+
+        prediction_column = f"{model}_prediction"
+        correctness_column = f"{model}_correct"
+
+        result[prediction_column] = prediction
+
+        result[correctness_column] = (
+            prediction == gold
+        ).astype(int)
+
+        correctness_columns.append(correctness_column)
+
+    result["n_models_correct"] = result[
+        correctness_columns
+    ].sum(axis=1)
+
+    result["n_model_errors"] = (
+        len(MODEL_ORDER) - result["n_models_correct"]
+    )
+
+    result["model_error_rate"] = (
+        result["n_model_errors"] / len(MODEL_ORDER)
+    )
+
+    result["model_relative_difficulty"] = result[
+        "n_model_errors"
+    ].map(assign_model_relative_difficulty)
+
+    return result
+
+
+def compute_instance_difficulty_by_domain(
+    instance_difficulty: pd.DataFrame,
+) -> pd.DataFrame:
+    if "domain" not in instance_difficulty.columns:
+        raise ValueError(
+            "Domain information is required to compute "
+            "instance_difficulty_by_domain.csv."
+        )
+
+    domain_order = [
+        domain
+        for domain in ["LGBT", "Obesity", "Racism"]
+        if domain in set(instance_difficulty["domain"])
     ]
 
-    output_columns = [
-        "id",
-        "text",
-        "gold",
-        "topic",
-        "n_model_correct",
-        "n_model_errors",
-        "error_rate",
-        "difficulty_group",
-    ] + prediction_columns
+    additional_domains = sorted(
+        set(instance_difficulty["domain"]) - set(domain_order)
+    )
 
-    unanimous_errors = unanimous_errors[
-        output_columns
+    domain_order.extend(additional_domains)
+
+    rows = []
+
+    for domain in domain_order:
+        subset = instance_difficulty[
+            instance_difficulty["domain"] == domain
+        ]
+
+        n_instances = len(subset)
+
+        counts = subset[
+            "model_relative_difficulty"
+        ].value_counts()
+
+        n_easy = int(counts.get("easy", 0))
+        n_moderate = int(counts.get("moderate", 0))
+        n_hard = int(counts.get("hard", 0))
+
+        rows.append(
+            {
+                "domain": domain,
+                "n_instances": n_instances,
+                "n_easy": n_easy,
+                "pct_easy": n_easy / n_instances,
+                "n_moderate": n_moderate,
+                "pct_moderate": n_moderate / n_instances,
+                "n_hard": n_hard,
+                "pct_hard": n_hard / n_instances,
+                "mean_models_correct": subset[
+                    "n_models_correct"
+                ].mean(),
+                "mean_model_errors": subset[
+                    "n_model_errors"
+                ].mean(),
+                "mean_model_error_rate": subset[
+                    "model_error_rate"
+                ].mean(),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+# =============================================================================
+# UNANIMOUS ERRORS
+# =============================================================================
+
+
+def extract_unanimous_errors(
+    instance_difficulty: pd.DataFrame,
+) -> pd.DataFrame:
+    unanimous = instance_difficulty[
+        instance_difficulty["n_models_correct"] == 0
     ].copy()
 
-    unanimous_errors = unanimous_errors.sort_values(
-        [
-            "topic",
-            "gold",
-            "id",
-        ]
-    ).reset_index(drop=True)
-
-    return unanimous_errors
+    return unanimous.reset_index(drop=True)
 
 
-def compute_unanimous_error_distribution(
-    unanimous_errors,
-):
+# =============================================================================
+# QUALITATIVE ERROR CODING TEMPLATE
+# =============================================================================
+
+
+def create_qualitative_coding_template(
+    unanimous_errors: pd.DataFrame,
+) -> pd.DataFrame:
     """
-    Compute the domain distribution of unanimous model failures.
+    Create a coding template containing every unanimously misclassified
+    instance.
 
-    Returns
-    -------
-    pandas.DataFrame
-        Number and percentage of unanimous failures by domain.
+    The fields are intentionally empty. They must be completed through
+    manual qualitative analysis.
+
+    Recommended workflow:
+
+    1. Two authors independently inspect all unanimous errors.
+    2. Each coder assigns:
+       - one primary phenomenon;
+       - zero or more secondary phenomena;
+       - a short analytical rationale.
+    3. The coders compare their annotations.
+    4. Disagreements are resolved through discussion.
+    5. Final consensus fields are completed.
+    6. The completed coding artifact is released with the repository.
+
+    The script does not compute inter-coder agreement because an
+    inductively developed qualitative coding scheme over a small sample
+    should not automatically be treated as a conventional fixed-category
+    annotation task.
     """
 
-    if len(unanimous_errors) == 0:
-        return pd.DataFrame(
-            columns=[
-                "topic",
-                "n_instances",
-                "percentage_of_unanimous_errors",
+    template = pd.DataFrame()
+
+    base_columns = [
+        "instance_id",
+        "text",
+        "domain",
+        "gold",
+    ]
+
+    for column in base_columns:
+        if column in unanimous_errors.columns:
+            template[column] = unanimous_errors[column]
+
+    for model in MODEL_ORDER:
+        prediction_column = f"{model}_prediction"
+
+        if prediction_column in unanimous_errors.columns:
+            template[prediction_column] = unanimous_errors[
+                prediction_column
             ]
-        )
 
-    distribution = (
-        unanimous_errors
-        .groupby("topic")
-        .size()
-        .reset_index(
-            name="n_instances"
-        )
-    )
+    template["coder_1_primary_phenomenon"] = ""
+    template["coder_1_secondary_phenomena"] = ""
+    template["coder_1_analytical_rationale"] = ""
 
-    distribution[
-        "percentage_of_unanimous_errors"
-    ] = (
-        100.0
-        * distribution["n_instances"]
-        / len(unanimous_errors)
-    )
+    template["coder_2_primary_phenomenon"] = ""
+    template["coder_2_secondary_phenomena"] = ""
+    template["coder_2_analytical_rationale"] = ""
 
-    distribution[
-        "percentage_of_unanimous_errors"
-    ] = (
-        distribution[
-            "percentage_of_unanimous_errors"
-        ].round(2)
-    )
+    template["primary_category_agreement"] = ""
 
-    return distribution
+    template["final_primary_phenomenon"] = ""
+    template["final_secondary_phenomena"] = ""
+    template["final_analytical_rationale"] = ""
+
+    template["adjudication_notes"] = ""
+
+    return template
 
 
 # =============================================================================
-# Main analysis
+# OUTPUT
 # =============================================================================
 
-def main():
 
-    RESULTS_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+def save_results(
+    repository_root: Path,
+    model_agreement: pd.DataFrame,
+    agreement_matrix: pd.DataFrame,
+    instance_difficulty: pd.DataFrame,
+    difficulty_by_domain: pd.DataFrame,
+    unanimous_errors: pd.DataFrame,
+    qualitative_template: pd.DataFrame,
+) -> None:
+    output_paths = [
+        repository_root / OUTPUT_MODEL_AGREEMENT,
+        repository_root / OUTPUT_MODEL_AGREEMENT_MATRIX,
+        repository_root / OUTPUT_INSTANCE_DIFFICULTY,
+        repository_root / OUTPUT_INSTANCE_DIFFICULTY_BY_DOMAIN,
+        repository_root / OUTPUT_UNANIMOUS_ERRORS,
+        repository_root / OUTPUT_QUALITATIVE_TEMPLATE,
+    ]
 
-    print("Loading prediction files...")
-
-    prediction_dfs = {
-        model_name: load_prediction_file(
-            model_name,
-            file_path,
+    for output_path in output_paths:
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
         )
-        for model_name, file_path
-        in MODEL_FILES.items()
-    }
 
-    reference_df = validate_common_instances(
-        prediction_dfs
-    )
-
-    model_names = list(
-        MODEL_FILES.keys()
-    )
-
-    print(
-        f"Validated {len(model_names)} models on "
-        f"{len(reference_df)} common test instances."
-    )
-
-    print("Loading official gold test partition...")
-
-    test_gold_df = load_test_gold(
-        TEST_GOLD_FILE
-    )
-
-    validate_test_gold(
-        test_gold_df,
-        reference_df,
-    )
-
-    print(
-        f"Validated test_gold.csv on "
-        f"{len(test_gold_df)} test instances."
-    )
-
-    prediction_matrix = build_prediction_matrix(
-        prediction_dfs,
-        reference_df,
-    )
-
-    # -------------------------------------------------------------------------
-    # Pairwise model agreement
-    # -------------------------------------------------------------------------
-
-    agreement_df = compute_pairwise_agreement(
-        prediction_matrix,
-        model_names,
-    )
-
-    agreement_matrix = build_agreement_matrix(
-        agreement_df,
-        model_names,
-    )
-
-    model_agreement_path = (
-        RESULTS_DIR
-        / "model_agreement.csv"
-    )
-
-    model_agreement_matrix_path = (
-        RESULTS_DIR
-        / "model_agreement_matrix.csv"
-    )
-
-    agreement_df.to_csv(
-        model_agreement_path,
+    model_agreement.to_csv(
+        repository_root / OUTPUT_MODEL_AGREEMENT,
         index=False,
     )
 
     agreement_matrix.to_csv(
-        model_agreement_matrix_path,
+        repository_root / OUTPUT_MODEL_AGREEMENT_MATRIX,
+        index=True,
     )
 
-    print("\nPairwise model agreement:")
-
-    print(
-        agreement_df.to_string(
-            index=False,
-            formatters={
-                "agreement_rate":
-                    "{:.4f}".format,
-                "cohen_kappa":
-                    "{:.4f}".format,
-            },
-        )
-    )
-
-    # -------------------------------------------------------------------------
-    # Empirical instance difficulty
-    # -------------------------------------------------------------------------
-
-    difficulty_df = compute_instance_difficulty(
-        prediction_matrix,
-        model_names,
-    )
-
-    instance_difficulty_path = (
-        RESULTS_DIR
-        / "instance_difficulty.csv"
-    )
-
-    difficulty_df.to_csv(
-        instance_difficulty_path,
+    instance_difficulty.to_csv(
+        repository_root / OUTPUT_INSTANCE_DIFFICULTY,
         index=False,
-    )
-
-    difficulty_distribution = (
-        compute_global_difficulty_distribution(
-            difficulty_df
-        )
-    )
-
-    print("\nInstance difficulty distribution:")
-
-    print(
-        difficulty_distribution.to_string(
-            formatters={
-                "percentage":
-                    "{:.2f}".format,
-            }
-        )
-    )
-
-    # -------------------------------------------------------------------------
-    # Mean model errors by domain
-    # -------------------------------------------------------------------------
-
-    domain_error_summary = (
-        compute_mean_errors_by_domain(
-            difficulty_df
-        )
-    )
-
-    print(
-        "\nMean number of model errors by domain:"
-    )
-
-    print(
-        domain_error_summary.to_string(
-            formatters={
-                "mean":
-                    "{:.4f}".format,
-                "std":
-                    "{:.4f}".format,
-                "median":
-                    "{:.4f}".format,
-            }
-        )
-    )
-
-    # -------------------------------------------------------------------------
-    # Difficulty distribution by domain
-    # -------------------------------------------------------------------------
-
-    difficulty_by_domain = (
-        compute_difficulty_by_domain(
-            difficulty_df
-        )
-    )
-
-    difficulty_by_domain_path = (
-        RESULTS_DIR
-        / "instance_difficulty_by_domain.csv"
     )
 
     difficulty_by_domain.to_csv(
-        difficulty_by_domain_path,
+        repository_root / OUTPUT_INSTANCE_DIFFICULTY_BY_DOMAIN,
         index=False,
-    )
-
-    print(
-        "\nInstance difficulty distribution by domain:"
-    )
-
-    print(
-        difficulty_by_domain.to_string(
-            index=False,
-            formatters={
-                "percentage_within_domain":
-                    "{:.2f}".format,
-            },
-        )
-    )
-
-    # -------------------------------------------------------------------------
-    # Unanimous-error extraction
-    # -------------------------------------------------------------------------
-
-    unanimous_errors = extract_unanimous_errors(
-        difficulty_df,
-        test_gold_df,
-        model_names,
-    )
-
-    unanimous_errors_path = (
-        RESULTS_DIR
-        / "unanimous_error_instances.csv"
     )
 
     unanimous_errors.to_csv(
-        unanimous_errors_path,
+        repository_root / OUTPUT_UNANIMOUS_ERRORS,
         index=False,
     )
 
-    unanimous_error_distribution = (
-        compute_unanimous_error_distribution(
-            unanimous_errors
+    qualitative_template.to_csv(
+        repository_root / OUTPUT_QUALITATIVE_TEMPLATE,
+        index=False,
+    )
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+
+def main() -> None:
+    repository_root = find_repository_root()
+
+    print_section("RESOLVING PREDICTION FILES")
+
+    prediction_files = resolve_prediction_files(repository_root)
+
+    for model in MODEL_ORDER:
+        relative_path = prediction_files[model].relative_to(
+            repository_root
         )
+        print(f"{model}: {relative_path}")
+
+    print_section("LOADING PREDICTIONS")
+
+    predictions: Dict[str, pd.DataFrame] = {}
+
+    for model in MODEL_ORDER:
+        predictions[model] = load_prediction_file(
+            model,
+            prediction_files[model],
+        )
+
+        print(
+            f"{model}: "
+            f"{len(predictions[model])} predictions loaded"
+        )
+
+    print_section("VALIDATING COMMON TEST INSTANCES")
+
+    validate_common_test_instances(predictions)
+
+    print(
+        f"All models contain {EXPECTED_N_INSTANCES} predictions."
+    )
+    print("Instance ordering is identical across models.")
+    print("Gold-label ordering is identical across models.")
+
+    reference = predictions[MODEL_ORDER[0]]
+
+    if "domain" in reference.columns:
+        print("Domain ordering is identical across models.")
+
+    if "text" in reference.columns:
+        print("Text ordering is identical across models.")
+
+    metadata = select_metadata_source(predictions)
+
+    print_section("ANALYSIS CONFIGURATION")
+
+    print(f"Number of models: {len(MODEL_ORDER)}")
+    print(f"Number of test instances: {EXPECTED_N_INSTANCES}")
+    print(
+        "Number of pairwise model comparisons: "
+        f"{len(list(combinations(MODEL_ORDER, 2)))}"
+    )
+    print("Pairwise measures: raw agreement and Cohen's kappa")
+    print(
+        "Instance-difficulty interpretation: "
+        "model-relative empirical grouping"
+    )
+    print(
+        "Easy: 0-1 model errors; "
+        "Moderate: 2-3 model errors; "
+        "Hard: 4-6 model errors"
+    )
+
+    print_section("COMPUTING PAIRWISE MODEL AGREEMENT")
+
+    model_agreement = compute_pairwise_model_agreement(
+        predictions
+    )
+
+    agreement_matrix = compute_agreement_matrix(
+        predictions
+    )
+
+    print(model_agreement.to_string(index=False))
+
+    print_section("RAW AGREEMENT MATRIX")
+
+    print(agreement_matrix.to_string())
+
+    print_section("COMPUTING MODEL-RELATIVE INSTANCE DIFFICULTY")
+
+    instance_difficulty = compute_instance_difficulty(
+        predictions,
+        metadata,
+    )
+
+    difficulty_counts = (
+        instance_difficulty["model_relative_difficulty"]
+        .value_counts()
+        .reindex(["easy", "moderate", "hard"], fill_value=0)
+    )
+
+    difficulty_percentages = (
+        difficulty_counts / len(instance_difficulty) * 100
+    )
+
+    difficulty_summary = pd.DataFrame(
+        {
+            "difficulty_group": difficulty_counts.index,
+            "n_instances": difficulty_counts.values,
+            "percentage": difficulty_percentages.values,
+        }
+    )
+
+    print(difficulty_summary.to_string(index=False))
+
+    print_section("COMPUTING MODEL-RELATIVE DIFFICULTY BY DOMAIN")
+
+    difficulty_by_domain = compute_instance_difficulty_by_domain(
+        instance_difficulty
+    )
+
+    print(difficulty_by_domain.to_string(index=False))
+
+    print_section("EXTRACTING UNANIMOUS ERRORS")
+
+    unanimous_errors = extract_unanimous_errors(
+        instance_difficulty
     )
 
     print(
-        "\nUnanimous model failures:"
-    )
-
-    print(
-        f"Total unanimously misclassified instances: "
+        "Number of instances misclassified by all "
+        f"{len(MODEL_ORDER)} model-level prediction vectors: "
         f"{len(unanimous_errors)}"
     )
 
-    print(
-        "\nDistribution of unanimous failures by domain:"
-    )
-
-    if unanimous_error_distribution.empty:
-        print(
-            "No unanimously misclassified instances."
-        )
-    else:
-        print(
-            unanimous_error_distribution.to_string(
-                index=False,
-                formatters={
-                    "percentage_of_unanimous_errors":
-                        "{:.2f}".format,
-                },
-            )
+    if "domain" in unanimous_errors.columns:
+        unanimous_by_domain = (
+            unanimous_errors["domain"]
+            .value_counts()
+            .rename_axis("domain")
+            .reset_index(name="n_unanimous_errors")
         )
 
-    # -------------------------------------------------------------------------
-    # Saved outputs
-    # -------------------------------------------------------------------------
+        print()
+        print(unanimous_by_domain.to_string(index=False))
 
-    print("\nSaved outputs:")
+    print_section("CREATING QUALITATIVE CODING TEMPLATE")
 
-    print(
-        f"  {model_agreement_path}"
+    qualitative_template = create_qualitative_coding_template(
+        unanimous_errors
     )
 
     print(
-        f"  {model_agreement_matrix_path}"
+        f"Qualitative coding template created with "
+        f"{len(qualitative_template)} instances."
+    )
+    print(
+        "The coding fields are intentionally empty and must be "
+        "completed through manual qualitative analysis."
     )
 
-    print(
-        f"  {instance_difficulty_path}"
+    save_results(
+        repository_root=repository_root,
+        model_agreement=model_agreement,
+        agreement_matrix=agreement_matrix,
+        instance_difficulty=instance_difficulty,
+        difficulty_by_domain=difficulty_by_domain,
+        unanimous_errors=unanimous_errors,
+        qualitative_template=qualitative_template,
     )
 
-    print(
-        f"  {difficulty_by_domain_path}"
-    )
+    print_section("SAVED RESULTS")
+
+    print(OUTPUT_MODEL_AGREEMENT)
+    print(OUTPUT_MODEL_AGREEMENT_MATRIX)
+    print(OUTPUT_INSTANCE_DIFFICULTY)
+    print(OUTPUT_INSTANCE_DIFFICULTY_BY_DOMAIN)
+    print(OUTPUT_UNANIMOUS_ERRORS)
+    print(OUTPUT_QUALITATIVE_TEMPLATE)
+
+    print_section("METHODOLOGICAL REMINDER")
 
     print(
-        f"  {unanimous_errors_path}"
+        "The easy/moderate/hard categories are model-relative "
+        "empirical groupings and must not be described as intrinsic "
+        "instance difficulty."
     )
+    print(
+        "The qualitative coding template is an input to manual "
+        "qualitative analysis. Generating the template does not by "
+        "itself constitute the qualitative error analysis."
+    )
+
+    print_section("Done.")
 
 
 if __name__ == "__main__":
     main()
+    
