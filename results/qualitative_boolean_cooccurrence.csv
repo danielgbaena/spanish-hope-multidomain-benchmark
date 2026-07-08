@@ -1,0 +1,10 @@
+diagnostic_dimension_1,diagnostic_dimension_2,n_both_true,percentage_of_all_instances
+implicit_supportive_intent,annotation_ambiguity,4,25.0
+implicit_supportive_intent,mixed_communicative_stance,4,25.0
+informational_or_context_dependent_discourse,annotation_ambiguity,3,18.75
+informational_or_context_dependent_discourse,sociocultural_reference,3,18.75
+implicit_supportive_intent,informational_or_context_dependent_discourse,2,12.5
+mixed_communicative_stance,annotation_ambiguity,2,12.5
+implicit_supportive_intent,irony_or_sarcasm,1,6.25
+implicit_supportive_intent,sociocultural_reference,1,6.25
+irony_or_sarcasm,annotation_ambiguity,1,6.25

@@ -1,0 +1,9 @@
+domain,secondary_error_phenomenon,n_instances,n_domain_unanimous_errors,percentage_of_domain_unanimous_errors
+lgbt,quoted_or_attributed_supportive_content,1,3,33.33333333333333
+obesity,mixed_or_contrastive_communicative_stance,3,7,42.857142857142854
+obesity,figurative_or_ironic_language,1,7,14.285714285714285
+obesity,informational_supportive_content,1,7,14.285714285714285
+obesity,lexical_cue_mismatch,1,7,14.285714285714285
+racism,counter_speech_or_prejudice_rebuttal,2,6,33.33333333333333
+racism,implicit_supportive_intent,2,6,33.33333333333333
+racism,mixed_or_contrastive_communicative_stance,1,6,16.666666666666664

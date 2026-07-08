@@ -1,0 +1,10 @@
+domain,primary_error_phenomenon,n_instances,n_domain_unanimous_errors,percentage_of_domain_unanimous_errors
+lgbt,mixed_or_contrastive_communicative_stance,2,3,66.66666666666666
+lgbt,informational_or_context_dependent_discourse,1,3,33.33333333333333
+obesity,annotation_boundary_case,3,7,42.857142857142854
+obesity,context_dependent_or_sociocultural_reference,2,7,28.57142857142857
+obesity,implicit_supportive_intent,2,7,28.57142857142857
+racism,implicit_supportive_intent,3,6,50.0
+racism,context_dependent_or_sociocultural_reference,1,6,16.666666666666664
+racism,informational_or_context_dependent_discourse,1,6,16.666666666666664
+racism,mixed_or_contrastive_communicative_stance,1,6,16.666666666666664

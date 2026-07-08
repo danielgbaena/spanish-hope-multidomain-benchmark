@@ -1,0 +1,9 @@
+statistic,value
+n_coded_unanimous_errors,16
+n_unique_primary_phenomena,5
+n_instances_with_secondary_phenomenon,12
+n_unique_secondary_phenomena,7
+n_annotation_ambiguity_cases,6
+n_lgbt_unanimous_errors,3
+n_obesity_unanimous_errors,7
+n_racism_unanimous_errors,6
